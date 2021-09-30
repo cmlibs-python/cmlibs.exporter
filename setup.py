@@ -31,7 +31,7 @@ readme.append('')
 
 software_licence = readfile("LICENSE")
 
-requires = []
+requires = ['opencmiss.argon']
 
 setup(
     name='opencmiss.exporter',
