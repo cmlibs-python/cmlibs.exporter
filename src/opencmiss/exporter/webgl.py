@@ -4,9 +4,9 @@ Geometric fit model adding visualisations to github.com/ABI-Software/scaffoldfit
 import os
 import json
 
-from opencmiss.argon.core.argondocument import ArgonDocument
-from opencmiss.argon.core.argonlogger import ArgonLogger
-from opencmiss.argon.core.argonerror import ArgonError
+from opencmiss.argon.argondocument import ArgonDocument
+from opencmiss.argon.argonlogger import ArgonLogger
+from opencmiss.argon.argonerror import ArgonError
 
 
 class ArgonSceneExporter(object):
@@ -54,11 +54,18 @@ class ArgonSceneExporter(object):
 
         return False
 
+    def set_parameters(self, parameters):
+        self._numberOfTimeSteps = parameters["numberOfTimeSteps"]
+        self._initialTime = parameters["initialTime"]
+        self._finishTime = parameters["finishTime"]
+        self._prefix = parameters["prefix"]
+
     def _form_full_filename(self, filename):
         return filename if self._output_target is None else os.path.join(self._output_target, filename)
 
     def export(self, output_target=None):
-        self._output_target = output_target
+        if output_target is not None:
+            self._output_target = output_target
         self.export_view()
         self.export_webgl()
 
