@@ -72,8 +72,10 @@ class ArgonSceneExporter(object):
     def export_view(self):
         """Export sceneviewer parameters to JSON format"""
         sceneviewer = self._document.getSceneviewer()
-        viewData = {'farPlane': sceneviewer._far_clipping_plane, 'nearPlane': sceneviewer._near_clipping_plane, 'eyePosition': sceneviewer._eye_position,
-                    'targetPosition': sceneviewer._lookat_position, 'upVector': sceneviewer._up_vector}
+        viewDataRaw = sceneviewer.get_view_parameters()
+        viewData = {'farPlane': viewDataRaw['farClippingPlane'], 'nearPlane': viewDataRaw['nearClippingPlane'],
+                    'eyePosition': viewDataRaw['eyePosition'], 'targetPosition': viewDataRaw['lookAtPosition'],
+                    'upVector': viewDataRaw['upVector']}
 
         view_file = self._form_full_filename(self._prefix + '_view.json')
         with open(view_file, 'w') as f:
