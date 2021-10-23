@@ -1,5 +1,5 @@
 """
-Geometric fit model adding visualisations to github.com/ABI-Software/scaffoldfitter
+Export an Argon document to WebGL documents suitable for scaffoldvuer.
 """
 import os
 import json
@@ -8,27 +8,32 @@ from opencmiss.argon.argondocument import ArgonDocument
 from opencmiss.argon.argonlogger import ArgonLogger
 from opencmiss.argon.argonerror import ArgonError
 
+from opencmiss.zinc.status import OK as ZINC_OK
+
 
 class ArgonSceneExporter(object):
     """
     Export a visualisation described by an Argon document to webGL.
     """
 
-    def __init__(self, input_argon_doc_file, output_target=None, output_prefix=None):
+    def __init__(self, output_target=None, output_prefix=None):
         """
-        :param input_argon_doc_file: The argon document to export.
         :param output_target: The target directory to export the visualisation to.
+        :param output_prefix: The prefix for the exported file(s).
         """
         self._output_target = output_target
-        self._document = ArgonDocument()
-        self._document.initialiseVisualisationContents()
-        self._prefix = "ArgonSceneExporter"
-        if output_prefix is not None:
-            self._prefix = output_prefix
+        self._document = None
+        self._filename = None
+        self._prefix = "ArgonSceneExporterWebGL" if output_prefix is None else output_prefix
         self._numberOfTimeSteps = 10
-        self._initialTime = 0.0
-        self._finishTime = 1.0
-        self.load(input_argon_doc_file)
+        self._initialTime = None
+        self._finishTime = None
+
+    def set_document(self, document):
+        self._document = document
+
+    def set_filename(self, filename):
+        self._filename = filename
 
     def load(self, filename):
         """
@@ -36,6 +41,9 @@ class ArgonSceneExporter(object):
         Emits documentChange separately if new document loaded, including if existing document cleared due to load failure.
         :return  True on success, otherwise False.
         """
+        if filename is None:
+            return False
+
         try:
             with open(filename, 'r') as f:
                 state = f.read()
@@ -44,6 +52,8 @@ class ArgonSceneExporter(object):
             # set current directory to path from file, to support scripts and FieldML with external resources
             path = os.path.dirname(filename)
             os.chdir(path)
+            self._document = ArgonDocument()
+            self._document.initialiseVisualisationContents()
             self._document.deserialize(state)
             os.chdir(current_wd)
             return True
@@ -66,6 +76,12 @@ class ArgonSceneExporter(object):
     def export(self, output_target=None):
         if output_target is not None:
             self._output_target = output_target
+
+        if self._document is None:
+            self._document = ArgonDocument()
+            self._document.initialiseVisualisationContents()
+            self.load(self._filename)
+
         self.export_view()
         self.export_webgl()
 
@@ -75,7 +91,7 @@ class ArgonSceneExporter(object):
         viewDataRaw = sceneviewer.get_view_parameters()
         viewData = {'farPlane': viewDataRaw['farClippingPlane'], 'nearPlane': viewDataRaw['nearClippingPlane'],
                     'eyePosition': viewDataRaw['eyePosition'], 'targetPosition': viewDataRaw['lookAtPosition'],
-                    'upVector': viewDataRaw['upVector']}
+                    'upVector': viewDataRaw['upVector'], 'viewAngle': viewDataRaw['viewAngle']}
 
         view_file = self._form_full_filename(self._prefix + '_view.json')
         with open(view_file, 'w') as f:
@@ -93,21 +109,33 @@ class ArgonSceneExporter(object):
         Output frames of the deforming heart between time 0 to 1,
         this matches the number of frame we have read in previously
         """
-        sceneSR.setNumberOfTimeSteps(self._numberOfTimeSteps)
-        sceneSR.setInitialTime(self._initialTime)
-        sceneSR.setFinishTime(self._finishTime)
-        """ We want the geometries and colours change overtime """
-        sceneSR.setOutputTimeDependentVertices(1)
-        sceneSR.setOutputTimeDependentColours(1)
+        if not (self._initialTime is None or self._finishTime is None):
+            sceneSR.setNumberOfTimeSteps(self._numberOfTimeSteps)
+            sceneSR.setInitialTime(self._initialTime)
+            sceneSR.setFinishTime(self._finishTime)
+            """ We want the geometries and colours change overtime """
+            sceneSR.setOutputTimeDependentVertices(1)
+            sceneSR.setOutputTimeDependentColours(1)
+
         number = sceneSR.getNumberOfResourcesRequired()
         resources = []
         """Write out each graphics into a json file which can be rendered with ZincJS"""
         for i in range(number):
             resources.append(sceneSR.createStreamresourceMemory())
+
         scene.write(sceneSR)
         """Write out each resource into their own file"""
         for i in range(number):
-            buffer = resources[i].getBuffer()[1].decode()
+            result, buffer = resources[i].getBuffer()
+            if result != ZINC_OK:
+                print('some sort of error')
+                continue
+
+            if buffer is None:
+                # Maybe this is a bug in the resource counting.
+                continue
+
+            buffer = buffer.decode()
 
             if i == 0:
                 for j in range(number - 1):
@@ -115,12 +143,13 @@ class ArgonSceneExporter(object):
                     IMPORTANT: the replace name here is relative to your html page, so adjust it
                     accordingly.
                     """
-                    replaceName = '' + self._prefix + '_' + str(j + 1) + '.json'
-                    old_name = 'memory_resource' + '_' + str(j + 2)
-                    buffer = buffer.replace(old_name, replaceName)
+                    replaceName = '"' + self._prefix + '_' + str(j + 1) + '.json"'
+                    old_name = '"memory_resource_' + str(j + 2) + '"'
+                    buffer = buffer.replace(old_name, replaceName, 1)
+
                 viewObj = {
                     "Type": "View",
-                    "URL": self._prefix + '_view' + '.json'
+                    "URL": self._prefix + '_view.json'
                 }
                 obj = json.loads(buffer)
                 obj.append(viewObj)
