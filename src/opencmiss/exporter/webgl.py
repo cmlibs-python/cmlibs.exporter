@@ -50,6 +50,8 @@ class ArgonSceneExporter(object):
 
             current_wd = os.getcwd()
             # set current directory to path from file, to support scripts and FieldML with external resources
+            if not os.path.isabs(filename):
+                filename = os.path.abspath(filename)
             path = os.path.dirname(filename)
             os.chdir(path)
             self._document = ArgonDocument()
