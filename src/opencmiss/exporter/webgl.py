@@ -1,12 +1,14 @@
 """
 Export an Argon document to WebGL documents suitable for scaffoldvuer.
 """
+import math
 import os
 import json
 
 from opencmiss.argon.argondocument import ArgonDocument
 from opencmiss.argon.argonlogger import ArgonLogger
 from opencmiss.argon.argonerror import ArgonError
+from opencmiss.exporter.errors import OpenCMISSExportWebGLError
 
 from opencmiss.zinc.status import OK as ZINC_OK
 
@@ -126,6 +128,12 @@ class ArgonSceneExporter(object):
             resources.append(sceneSR.createStreamresourceMemory())
 
         scene.write(sceneSR)
+
+        number_of_digits = math.floor(math.log10(number)) + 1
+
+        def _resource_filename(prefix, i_):
+            return f'{prefix}_{str(i_).zfill(number_of_digits)}.json'
+
         """Write out each resource into their own file"""
         for i in range(number):
             result, buffer = resources[i].getBuffer()
@@ -145,7 +153,7 @@ class ArgonSceneExporter(object):
                     IMPORTANT: the replace name here is relative to your html page, so adjust it
                     accordingly.
                     """
-                    replaceName = '"' + self._prefix + '_' + str(j + 1) + '.json"'
+                    replaceName = f'"{_resource_filename(self._prefix, j + 1)}"'
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
@@ -153,14 +161,18 @@ class ArgonSceneExporter(object):
                     "Type": "View",
                     "URL": self._prefix + '_view.json'
                 }
+
                 obj = json.loads(buffer)
+                if obj is None:
+                    raise OpenCMISSExportWebGLError('There is nothing to export')
+
                 obj.append(viewObj)
                 buffer = json.dumps(obj)
 
             if i == 0:
                 current_file = self._form_full_filename(self._prefix + '_metadata.json')
             else:
-                current_file = self._form_full_filename(self._prefix + '_' + str(i) + '.json')
+                current_file = self._form_full_filename(_resource_filename(self._prefix, i))
 
             with open(current_file, 'w') as f:
                 f.write(buffer)
