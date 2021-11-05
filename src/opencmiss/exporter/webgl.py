@@ -122,6 +122,9 @@ class ArgonSceneExporter(object):
             sceneSR.setOutputTimeDependentColours(1)
 
         number = sceneSR.getNumberOfResourcesRequired()
+        if number == 0:
+            return
+
         resources = []
         """Write out each graphics into a json file which can be rendered with ZincJS"""
         for i in range(number):
