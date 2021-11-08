@@ -133,6 +133,10 @@ class ArgonSceneExporter(object):
                     # sceneviewer.setViewAngle(viewDataRaw['viewAngle'])
                     sceneviewer_state = self._document.getSceneviewer().serialize()
                     sceneviewer.readDescription(json.dumps(sceneviewer_state))
+                    # workaround for order independent transparency producing a white output
+                    # and in any case, sceneviewer transparency layers was not being serialised by Zinc
+                    if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
+                        sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
 
                     scene = self._document.getRootRegion().getZincRegion().getScene()
                     sceneviewer.setScene(scene)
