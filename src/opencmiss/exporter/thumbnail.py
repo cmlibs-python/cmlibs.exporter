@@ -125,12 +125,19 @@ class ArgonSceneExporter(object):
                     if not (self._initialTime is None or self._finishTime is None):
                         raise NotImplementedError('Time varying image export is not implemented.')
 
-                    viewDataRaw = self._document.getSceneviewer().get_view_parameters()
+                    # viewDataRaw = self._document.getSceneviewer().get_view_parameters()
+                    #
+                    # sceneviewer.setLookatParametersNonSkew(viewDataRaw['eyePosition'], viewDataRaw['lookAtPosition'], viewDataRaw['upVector'])
+                    # sceneviewer.setFarClippingPlane(viewDataRaw['farClippingPlane'])
+                    # sceneviewer.setNearClippingPlane(viewDataRaw['nearClippingPlane'])
+                    # sceneviewer.setViewAngle(viewDataRaw['viewAngle'])
+                    sceneviewer_state = self._document.getSceneviewer().serialize()
+                    sceneviewer.readDescription(json.dumps(sceneviewer_state))
+                    # workaround for order independent transparency producing a white output
+                    # and in any case, sceneviewer transparency layers was not being serialised by Zinc
+                    if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
+                        sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
 
-                    sceneviewer.setLookatParametersNonSkew(viewDataRaw['eyePosition'], viewDataRaw['lookAtPosition'], viewDataRaw['upVector'])
-                    sceneviewer.setFarClippingPlane(viewDataRaw['farClippingPlane'])
-                    sceneviewer.setNearClippingPlane(viewDataRaw['nearClippingPlane'])
-                    sceneviewer.setViewAngle(viewDataRaw['viewAngle'])
                     scene = self._document.getRootRegion().getZincRegion().getScene()
                     sceneviewer.setScene(scene)
                     sceneviewer.renderScene()
