@@ -94,7 +94,6 @@ class ArgonSceneExporter(object):
         """
         Export graphics into an image format.
         """
-        print('=====================')
         try:
             from PySide2 import QtWidgets
             from PySide2 import QtGui
