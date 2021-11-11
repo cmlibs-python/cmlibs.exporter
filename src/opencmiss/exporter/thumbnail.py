@@ -94,6 +94,7 @@ class ArgonSceneExporter(object):
         """
         Export graphics into an image format.
         """
+        print('=====================')
         try:
             from PySide2 import QtWidgets
             from PySide2 import QtGui
@@ -132,9 +133,17 @@ class ArgonSceneExporter(object):
                     if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
                         sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
 
-                    scene = self._document.getRootRegion().getZincRegion().getScene()
+                    scene = zinc_context.getDefaultRegion().getScene()
+
+                    # Workaround for partial scene rendering.  We will call renderScene one more time than
+                    # we have regions in the region tree.
+                    region_count = 1
+                    root_region = zinc_context.getDefaultRegion()
+                    region_count += count_regions(root_region)
+
                     sceneviewer.setScene(scene)
-                    sceneviewer.renderScene()
+                    for _index in range(region_count):
+                        sceneviewer.renderScene()
 
                     image = fbo.toImage()
                     image.save(os.path.join(self._output_target, f'{self._prefix}_thumbnail.jpeg'))
@@ -142,3 +151,16 @@ class ArgonSceneExporter(object):
 
         except ImportError:
             raise OpenCMISSExportThumbnailError('Thumbnail export not supported without optional requirement PySide2')
+
+
+def count_regions(region):
+    count = 1
+    first_child = region.getFirstChild()
+    if first_child.isValid():
+        count += count_regions(first_child)
+        next_sibling = first_child.getNextSibling()
+        while next_sibling.isValid():
+            count += count_regions(next_sibling)
+            next_sibling = next_sibling.getNextSibling()
+
+    return count
