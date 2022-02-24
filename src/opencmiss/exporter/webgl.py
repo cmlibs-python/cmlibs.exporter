@@ -86,20 +86,27 @@ class ArgonSceneExporter(object):
             self._document.initialiseVisualisationContents()
             self.load(self._filename)
 
+        self._document.checkVersion("0.3.0")
+
         self.export_view()
         self.export_webgl()
 
     def export_view(self):
         """Export sceneviewer parameters to JSON format"""
-        sceneviewer = self._document.getSceneviewer()
-        viewDataRaw = sceneviewer.get_view_parameters()
-        viewData = {'farPlane': viewDataRaw['farClippingPlane'], 'nearPlane': viewDataRaw['nearClippingPlane'],
-                    'eyePosition': viewDataRaw['eyePosition'], 'targetPosition': viewDataRaw['lookAtPosition'],
-                    'upVector': viewDataRaw['upVector'], 'viewAngle': viewDataRaw['viewAngle']}
+        view_manager = self._document.getViewManager()
+        views = view_manager.getViews()
+        for view in views:
+            name = view.getName()
+            scenes = view.getScenes()
+            if len(scenes) == 1:
+                scene_description = scenes[0]["Sceneviewer"].serialize()
+                viewData = {'farPlane': scene_description['FarClippingPlane'], 'nearPlane': scene_description['NearClippingPlane'],
+                            'eyePosition': scene_description['EyePosition'], 'targetPosition': scene_description['LookatPosition'],
+                            'upVector': scene_description['UpVector'], 'viewAngle': scene_description['ViewAngle']}
 
-        view_file = self._form_full_filename(self._prefix + '_view.json')
-        with open(view_file, 'w') as f:
-            json.dump(viewData, f)
+                view_file = self._form_full_filename(f"{self._prefix}_{name}_view.json")
+                with open(view_file, 'w') as f:
+                    json.dump(viewData, f)
 
     def export_webgl(self):
         """
