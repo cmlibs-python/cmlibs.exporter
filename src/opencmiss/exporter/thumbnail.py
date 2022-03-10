@@ -88,6 +88,8 @@ class ArgonSceneExporter(object):
             self._document.initialiseVisualisationContents()
             self._document.deserialize(state)
 
+        self._document.checkVersion("0.3.0")
+
         self.export_thumbnail()
 
     def export_thumbnail(self):
@@ -104,54 +106,70 @@ class ArgonSceneExporter(object):
             if QtGui.QGuiApplication.instance() is None:
                 QtGui.QGuiApplication([])
 
-            off_screen = QtGui.QOffscreenSurface()
-            off_screen.create()
-            if off_screen.isValid():
-                context = QtGui.QOpenGLContext()
-                if context.create():
-                    context.makeCurrent(off_screen)
+            zinc_context = self._document.getZincContext()
+            view_manager = self._document.getViewManager()
 
-                    fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
-                    fbo_format.setAttachment(QtGui.QOpenGLFramebufferObject.CombinedDepthStencil)
-                    fbo_format.setSamples(4)
-                    fbo = QtGui.QOpenGLFramebufferObject(512, 512, fbo_format)
-                    fbo.bind()
+            root_region = zinc_context.getDefaultRegion()
+            sceneviewermodule = zinc_context.getSceneviewermodule()
 
-                    zinc_context = self._document.getZincContext()
-                    sceneviewermodule = zinc_context.getSceneviewermodule()
-                    sceneviewer = sceneviewermodule.createSceneviewer(Sceneviewer.BUFFERING_MODE_DOUBLE, Sceneviewer.STEREO_MODE_DEFAULT)
-                    sceneviewer.setViewportSize(512, 512)
+            views = view_manager.getViews()
 
-                    if not (self._initialTime is None or self._finishTime is None):
-                        raise NotImplementedError('Time varying image export is not implemented.')
+            for view in views:
+                name = view.getName()
+                scenes = view.getScenes()
+                if len(scenes) == 1:
+                    scene_description = scenes[0]["Sceneviewer"].serialize()
 
-                    sceneviewer_state = self._document.getSceneviewer().serialize()
-                    sceneviewer.readDescription(json.dumps(sceneviewer_state))
-                    # Workaround for order independent transparency producing a white output
-                    # and in any case, sceneviewer transparency layers were not being serialised by Zinc.
-                    if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
-                        sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
+                    off_screen = QtGui.QOffscreenSurface()
+                    off_screen.create()
+                    if off_screen.isValid():
+                        context = QtGui.QOpenGLContext()
+                        if context.create():
+                            context.makeCurrent(off_screen)
 
-                    scene = zinc_context.getDefaultRegion().getScene()
+                            fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
+                            fbo_format.setAttachment(QtGui.QOpenGLFramebufferObject.CombinedDepthStencil)
+                            fbo_format.setSamples(4)
+                            fbo = QtGui.QOpenGLFramebufferObject(512, 512, fbo_format)
+                            fbo.bind()
 
-                    # Workaround for partial scene rendering.  We will call renderScene one more time than
-                    # we have regions in the region tree.
-                    region_count = 1
-                    root_region = zinc_context.getDefaultRegion()
-                    region_count += count_regions(root_region)
+                            sceneviewer = sceneviewermodule.createSceneviewer(Sceneviewer.BUFFERING_MODE_DOUBLE, Sceneviewer.STEREO_MODE_DEFAULT)
+                            sceneviewer.setViewportSize(512, 512)
 
-                    sceneviewer.setScene(scene)
-                    for _index in range(region_count):
-                        sceneviewer.renderScene()
+                            if not (self._initialTime is None or self._finishTime is None):
+                                raise NotImplementedError('Time varying image export is not implemented.')
 
-                    image = fbo.toImage()
-                    image.save(os.path.join(self._output_target, f'{self._prefix}_thumbnail.jpeg'))
-                    fbo.release()
+                            sceneviewer.readDescription(json.dumps(scene_description))
+                            # Workaround for order independent transparency producing a white output
+                            # and in any case, sceneviewer transparency layers were not being serialised by Zinc.
+                            if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
+                                sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
+
+                            scene_path = scene_description["Scene"]
+                            scene = root_region.getScene()
+                            if scene_path is not None:
+                                scene_region = root_region.findChildByName(scene_path)
+                                if scene_region.isValid():
+                                    scene = scene_region.getScene()
+
+                            # Workaround for partial scene rendering.  We will call renderScene one more time than
+                            # we have regions in the region tree.
+                            region_count = 1
+                            region_count += count_regions(root_region)
+
+                            sceneviewer.setScene(scene)
+                            for _index in range(region_count):
+                                sceneviewer.renderScene()
+
+                            image = fbo.toImage()
+                            image.save(os.path.join(self._output_target, f'{self._prefix}_{name}_thumbnail.jpeg'))
+
+                            fbo.release()
 
         except ImportError:
             raise OpenCMISSExportThumbnailError('Thumbnail export not supported without optional requirement PySide2')
 
-
+    # def _generate_thumbnail(self, ):
 def count_regions(region):
     count = 1
     first_child = region.getFirstChild()
