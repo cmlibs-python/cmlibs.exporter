@@ -1,0 +1,734 @@
+{
+  "Materials": {
+    "DefaultMaterial": "default",
+    "DefaultSelectedMaterial": "default_selected",
+    "DefaultSurfaceMaterial": "white",
+    "Materials": [
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0,
+          0,
+          0
+        ],
+        "Diffuse": [
+          0,
+          0,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "black",
+        "Shininess": 0.2,
+        "Specular": [
+          0.3,
+          0.3,
+          0.3
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0,
+          0,
+          1
+        ],
+        "Diffuse": [
+          0,
+          0,
+          1
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "blue",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.7,
+          0.7,
+          0.6
+        ],
+        "Diffuse": [
+          0.9,
+          0.9,
+          0.7
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "bone",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.5,
+          0.25,
+          0
+        ],
+        "Diffuse": [
+          0.5,
+          0.25,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "brown",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0,
+          1,
+          1
+        ],
+        "Diffuse": [
+          0,
+          1,
+          1
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "cyan",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0,
+          0,
+          0
+        ],
+        "Diffuse": [
+          0,
+          0,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "default",
+        "Shininess": 0,
+        "Specular": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          0.2,
+          0
+        ],
+        "Diffuse": [
+          1,
+          0.2,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "default_selected",
+        "Shininess": 0,
+        "Specular": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          0.4,
+          0
+        ],
+        "Diffuse": [
+          1,
+          0.7,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "gold",
+        "Shininess": 0.3,
+        "Specular": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0,
+          1,
+          0
+        ],
+        "Diffuse": [
+          0,
+          1,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "green",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "Diffuse": [
+          0.25,
+          0.25,
+          0.25
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "grey25",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "Diffuse": [
+          0.5,
+          0.5,
+          0.5
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "grey50",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.75,
+          0.75,
+          0.75
+        ],
+        "Diffuse": [
+          0.75,
+          0.75,
+          0.75
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "grey75",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          0,
+          1
+        ],
+        "Diffuse": [
+          1,
+          0,
+          1
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "magenta",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.4,
+          0.14,
+          0.11
+        ],
+        "Diffuse": [
+          0.5,
+          0.12,
+          0.1
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "muscle",
+        "Shininess": 0.2,
+        "Specular": [
+          0.3,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          0.5,
+          0
+        ],
+        "Diffuse": [
+          1,
+          0.5,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "orange",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          0,
+          0
+        ],
+        "Diffuse": [
+          1,
+          0,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "red",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.4,
+          0.4,
+          0.4
+        ],
+        "Diffuse": [
+          0.7,
+          0.7,
+          0.7
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "silver",
+        "Shininess": 0.3,
+        "Specular": [
+          0.5,
+          0.5,
+          0.5
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          0.9,
+          0.7,
+          0.5
+        ],
+        "Diffuse": [
+          0.9,
+          0.7,
+          0.5
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "tissue",
+        "Shininess": 0.2000000029802322,
+        "Specular": [
+          0.2,
+          0.2,
+          0.3
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          1,
+          1
+        ],
+        "Diffuse": [
+          1,
+          1,
+          1
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "white",
+        "Shininess": 0,
+        "Specular": [
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "Alpha": 1,
+        "Ambient": [
+          1,
+          1,
+          0
+        ],
+        "Diffuse": [
+          1,
+          1,
+          0
+        ],
+        "Emission": [
+          0,
+          0,
+          0
+        ],
+        "Name": "yellow",
+        "Shininess": 0.2,
+        "Specular": [
+          0.1,
+          0.1,
+          0.1
+        ]
+      }
+    ]
+  },
+  "OpenCMISS-Argon Version": [
+    "0",
+    "3",
+    "1"
+  ],
+  "RootRegion": {
+    "ChildRegions": [
+      {
+        "Fieldmodule": {
+          "Fields": [
+            {
+              "CoordinateSystemType": "RECTANGULAR_CARTESIAN",
+              "FieldFiniteElement": {
+                "ComponentNames": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "NumberOfComponents": 3
+              },
+              "IsManaged": true,
+              "IsTypeCoordinate": true,
+              "Name": "coordinates"
+            }
+          ]
+        },
+        "Model": {
+          "Sources": [
+            {
+              "FileName": "basic_sphere.exf",
+              "RegionName": "/sphere",
+              "Type": "FILE"
+            }
+          ]
+        },
+        "Name": "sphere",
+        "Scene": {
+          "Graphics": [
+            {
+              "BoundaryMode": "ALL",
+              "CoordinateField": "coordinates",
+              "ElementFaceType": "ALL",
+              "FieldDomainType": "MESH2D",
+              "Material": "blue",
+              "RenderLineWidth": 1,
+              "RenderPointSize": 1,
+              "RenderPolygonMode": "SHADED",
+              "Scenecoordinatesystem": "LOCAL",
+              "SelectMode": "ON",
+              "SelectedMaterial": "default_selected",
+              "Surfaces": {},
+              "Tessellation": "default",
+              "Type": "SURFACES",
+              "VisibilityFlag": true
+            }
+          ],
+          "VisibilityFlag": true
+        }
+      },
+      {
+        "Fieldmodule": {
+          "Fields": [
+            {
+              "CoordinateSystemType": "RECTANGULAR_CARTESIAN",
+              "FieldFiniteElement": {
+                "ComponentNames": [
+                  "x",
+                  "y",
+                  "z"
+                ],
+                "NumberOfComponents": 3
+              },
+              "IsManaged": true,
+              "IsTypeCoordinate": true,
+              "Name": "coordinates"
+            }
+          ]
+        },
+        "Model": {
+          "Sources": [
+            {
+              "FileName": "two_element_cube.exf",
+              "RegionName": "/cube",
+              "Type": "FILE"
+            }
+          ]
+        },
+        "Name": "cube",
+        "Scene": {
+          "Graphics": [
+            {
+              "BoundaryMode": "ALL",
+              "CoordinateField": "coordinates",
+              "ElementFaceType": "ALL",
+              "FieldDomainType": "MESH2D",
+              "Material": "orange",
+              "RenderLineWidth": 1,
+              "RenderPointSize": 1,
+              "RenderPolygonMode": "SHADED",
+              "Scenecoordinatesystem": "LOCAL",
+              "SelectMode": "ON",
+              "SelectedMaterial": "default_selected",
+              "Surfaces": {},
+              "Tessellation": "default",
+              "Type": "SURFACES",
+              "VisibilityFlag": true
+            }
+          ],
+          "VisibilityFlag": true
+        }
+      }
+    ],
+    "Fieldmodule": null,
+    "Scene": {
+      "Graphics": null,
+      "VisibilityFlag": true
+    }
+  },
+  "Spectrums": {
+    "DefaultSpectrum": "default",
+    "Spectrums": [
+      {
+        "Components": [
+          {
+            "Active": true,
+            "BandedRatio": 0.2,
+            "ColourMappingType": "RAINBOW",
+            "ColourMaximum": 0,
+            "ColourMinimum": 1,
+            "ColourReverse": false,
+            "Exaggeration": 1,
+            "ExtendAbove": true,
+            "ExtendBelow": true,
+            "FieldComponent": 1,
+            "FixMaximum": false,
+            "FixMinimum": false,
+            "NumberOfBands": 10,
+            "RangeMaximum": 1,
+            "RangeMinimum": 0,
+            "ScaleType": "LINEAR",
+            "StepValue": 0.5
+          }
+        ],
+        "MaterialOverwrite": true,
+        "Name": "default"
+      }
+    ]
+  },
+  "Tessellations": {
+    "DefaultPointsTessellation": "default_points",
+    "DefaultTessellation": "default",
+    "Tessellations": [
+      {
+        "CircleDivisions": 12,
+        "MinimumDivisions": [
+          1
+        ],
+        "Name": "default",
+        "RefinementFactors": [
+          6
+        ]
+      },
+      {
+        "CircleDivisions": 12,
+        "MinimumDivisions": [
+          1
+        ],
+        "Name": "default_points",
+        "RefinementFactors": [
+          1
+        ]
+      }
+    ]
+  },
+  "Views": {
+    "ActiveView": "Layout1",
+    "Children": [
+      {
+        "Name": "Layout1",
+        "Scenes": [
+          {
+            "Col": 0,
+            "Row": 0,
+            "Sceneviewer": {
+              "AntialiasSampling": 0,
+              "BackgroundColourRGB": [
+                1.0,
+                1.0,
+                1.0
+              ],
+              "EyePosition": [
+                -10.406112091362258,
+                -1.0105267991638227,
+                20.508722258126188
+              ],
+              "FarClippingPlane": 46.012202777462,
+              "LightingLocalViewer": false,
+              "LightingTwoSided": true,
+              "LookatPosition": [
+                0.7499998807907104,
+                0.375,
+                0.8199999928474426
+              ],
+              "NearClippingPlane": 1.1336052038581257,
+              "PerturbLinesFlag": false,
+              "ProjectionMode": "PERSPECTIVE",
+              "Scene": null,
+              "Scenefilter": "default",
+              "TranslationRate": 1,
+              "TransparencyLayers": 1,
+              "TransparencyMode": "FAST",
+              "TumbleRate": 1.5,
+              "UpVector": [
+                0.03459035490405225,
+                0.9953728710596668,
+                0.08964571883836865
+              ],
+              "ViewAngle": 0.6981317007977248,
+              "ZoomRate": 1
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

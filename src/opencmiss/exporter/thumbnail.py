@@ -8,6 +8,7 @@ from opencmiss.argon.argondocument import ArgonDocument
 from opencmiss.argon.argonlogger import ArgonLogger
 from opencmiss.argon.argonerror import ArgonError
 from opencmiss.exporter.errors import OpenCMISSExportThumbnailError
+from opencmiss.zinc.sceneviewer import Sceneviewer
 
 
 class ArgonSceneExporter(object):
@@ -96,88 +97,88 @@ class ArgonSceneExporter(object):
         """
         Export graphics into an image format.
         """
+        pyside2_opengl_failed = True
         try:
-            from PySide2 import QtWidgets
             from PySide2 import QtGui
-            from PySide2 import QtOpenGL
-
-            from opencmiss.zinc.sceneviewer import Sceneviewer
 
             if QtGui.QGuiApplication.instance() is None:
                 QtGui.QGuiApplication([])
 
-            zinc_context = self._document.getZincContext()
-            view_manager = self._document.getViewManager()
-
-            root_region = zinc_context.getDefaultRegion()
-            sceneviewermodule = zinc_context.getSceneviewermodule()
-
-            views = view_manager.getViews()
-
-            for view in views:
-                name = view.getName()
-                scenes = view.getScenes()
-                if len(scenes) == 1:
-                    scene_description = scenes[0]["Sceneviewer"].serialize()
-
-                    off_screen = QtGui.QOffscreenSurface()
-                    off_screen.create()
-                    if off_screen.isValid():
-                        context = QtGui.QOpenGLContext()
-                        if context.create():
-                            context.makeCurrent(off_screen)
-
-                            fbo_format = QtGui.QOpenGLFramebufferObjectFormat()
-                            fbo_format.setAttachment(QtGui.QOpenGLFramebufferObject.CombinedDepthStencil)
-                            fbo_format.setSamples(4)
-                            fbo = QtGui.QOpenGLFramebufferObject(512, 512, fbo_format)
-                            fbo.bind()
-
-                            sceneviewer = sceneviewermodule.createSceneviewer(Sceneviewer.BUFFERING_MODE_DOUBLE, Sceneviewer.STEREO_MODE_DEFAULT)
-                            sceneviewer.setViewportSize(512, 512)
-
-                            if not (self._initialTime is None or self._finishTime is None):
-                                raise NotImplementedError('Time varying image export is not implemented.')
-
-                            sceneviewer.readDescription(json.dumps(scene_description))
-                            # Workaround for order independent transparency producing a white output
-                            # and in any case, sceneviewer transparency layers were not being serialised by Zinc.
-                            if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
-                                sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
-
-                            scene_path = scene_description["Scene"]
-                            scene = root_region.getScene()
-                            if scene_path is not None:
-                                scene_region = root_region.findChildByName(scene_path)
-                                if scene_region.isValid():
-                                    scene = scene_region.getScene()
-
-                            # Workaround for partial scene rendering.  We will call renderScene one more time than
-                            # we have regions in the region tree.
-                            region_count = 1
-                            region_count += count_regions(root_region)
-
-                            sceneviewer.setScene(scene)
-                            for _index in range(region_count):
-                                sceneviewer.renderScene()
-
-                            image = fbo.toImage()
-                            image.save(os.path.join(self._output_target, f'{self._prefix}_{name}_thumbnail.jpeg'))
-
-                            fbo.release()
+            off_screen = QtGui.QOffscreenSurface()
+            off_screen.create()
+            if off_screen.isValid():
+                context = QtGui.QOpenGLContext()
+                if context.create():
+                    context.makeCurrent(off_screen)
+                    pyside2_opengl_failed = False
 
         except ImportError:
-            raise OpenCMISSExportThumbnailError('Thumbnail export not supported without optional requirement PySide2')
+            pyside2_opengl_failed = True
 
-    # def _generate_thumbnail(self, ):
-def count_regions(region):
-    count = 1
-    first_child = region.getFirstChild()
-    if first_child.isValid():
-        count += count_regions(first_child)
-        next_sibling = first_child.getNextSibling()
-        while next_sibling.isValid():
-            count += count_regions(next_sibling)
-            next_sibling = next_sibling.getNextSibling()
+        try:
+            from OpenGL import arrays
+            from OpenGL.osmesa import (
+                OSMesaCreateContextAttribs, OSMESA_FORMAT,
+                OSMESA_RGBA, OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+                OSMESA_CONTEXT_MAJOR_VERSION, OSMESA_CONTEXT_MINOR_VERSION,
+                OSMESA_DEPTH_BITS
+            )
 
-    return count
+            attrs = arrays.GLintArray.asArray([
+                OSMESA_FORMAT, OSMESA_RGBA,
+                OSMESA_DEPTH_BITS, 24,
+                OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+                OSMESA_CONTEXT_MAJOR_VERSION, 2,
+                OSMESA_CONTEXT_MINOR_VERSION, 1,
+                0
+            ])
+            context = OSMesaCreateContextAttribs(attrs, None)
+            # buffer = arrays.GLubyteArray.zeros(
+            #     (512, 512, 4)
+            # )
+            osmesa_opengl_failed = False
+        except ImportError:
+            osmesa_opengl_failed = True
+
+        if pyside2_opengl_failed and osmesa_opengl_failed:
+            raise OpenCMISSExportThumbnailError('Thumbnail export not supported without optional requirements PySide2 for hardware rendering or OSMesa for software rendering.')
+
+        zinc_context = self._document.getZincContext()
+        view_manager = self._document.getViewManager()
+
+        root_region = zinc_context.getDefaultRegion()
+        sceneviewermodule = zinc_context.getSceneviewermodule()
+
+        views = view_manager.getViews()
+
+        for view in views:
+            name = view.getName()
+            scenes = view.getScenes()
+            if len(scenes) == 1:
+                scene_description = scenes[0]["Sceneviewer"].serialize()
+
+                sceneviewer = sceneviewermodule.createSceneviewer(Sceneviewer.BUFFERING_MODE_DOUBLE, Sceneviewer.STEREO_MODE_DEFAULT)
+                sceneviewer.setViewportSize(512, 512)
+                # timeout = 120.0
+                # sceneviewer.setRenderTimeout(timeout)
+
+                if not (self._initialTime is None or self._finishTime is None):
+                    raise NotImplementedError('Time varying image export is not implemented.')
+
+                sceneviewer.readDescription(json.dumps(scene_description))
+                # Workaround for order independent transparency producing a white output
+                # and in any case, sceneviewer transparency layers were not being serialised by Zinc.
+                if sceneviewer.getTransparencyMode() == Sceneviewer.TRANSPARENCY_MODE_ORDER_INDEPENDENT:
+                    sceneviewer.setTransparencyMode(Sceneviewer.TRANSPARENCY_MODE_SLOW)
+
+                scene_path = scene_description["Scene"]
+                scene = root_region.getScene()
+                if scene_path is not None:
+                    scene_region = root_region.findChildByName(scene_path)
+                    if scene_region.isValid():
+                        scene = scene_region.getScene()
+
+                sceneviewer.setScene(scene)
+                sceneviewer.renderScene()
+
+                sceneviewer.writeImageToFile(os.path.join(self._output_target, f'{self._prefix}_{name}_thumbnail.jpeg'), False, 512, 512, 4, 0)

@@ -50,4 +50,9 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=requires,
+    extras_require={
+        "thumbnail_hardware": ["PySide2"],
+        "thumbnail_software": ["PyOpenGL"],
+    }
+
 )
