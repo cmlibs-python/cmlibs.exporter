@@ -115,30 +115,32 @@ class ArgonSceneExporter(object):
         except ImportError:
             pyside2_opengl_failed = True
 
-        try:
-            from OpenGL import arrays
-            from OpenGL.osmesa import (
-                OSMesaCreateContextAttribs, OSMESA_FORMAT,
-                OSMESA_RGBA, OSMESA_PROFILE, OSMESA_CORE_PROFILE,
-                OSMESA_CONTEXT_MAJOR_VERSION, OSMESA_CONTEXT_MINOR_VERSION,
-                OSMESA_DEPTH_BITS
-            )
+        osmesa_opengl_failed = True
+        if pyside2_opengl_failed:
+            try:
+                from OpenGL import arrays
+                from OpenGL.osmesa import (
+                    OSMesaCreateContextAttribs, OSMESA_FORMAT,
+                    OSMESA_RGBA, OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+                    OSMESA_CONTEXT_MAJOR_VERSION, OSMESA_CONTEXT_MINOR_VERSION,
+                    OSMESA_DEPTH_BITS
+                )
 
-            attrs = arrays.GLintArray.asArray([
-                OSMESA_FORMAT, OSMESA_RGBA,
-                OSMESA_DEPTH_BITS, 24,
-                OSMESA_PROFILE, OSMESA_CORE_PROFILE,
-                OSMESA_CONTEXT_MAJOR_VERSION, 2,
-                OSMESA_CONTEXT_MINOR_VERSION, 1,
-                0
-            ])
-            context = OSMesaCreateContextAttribs(attrs, None)
-            # buffer = arrays.GLubyteArray.zeros(
-            #     (512, 512, 4)
-            # )
-            osmesa_opengl_failed = False
-        except ImportError:
-            osmesa_opengl_failed = True
+                attrs = arrays.GLintArray.asArray([
+                    OSMESA_FORMAT, OSMESA_RGBA,
+                    OSMESA_DEPTH_BITS, 24,
+                    OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+                    OSMESA_CONTEXT_MAJOR_VERSION, 2,
+                    OSMESA_CONTEXT_MINOR_VERSION, 1,
+                    0
+                ])
+                context = OSMesaCreateContextAttribs(attrs, None)
+                # buffer = arrays.GLubyteArray.zeros(
+                #     (512, 512, 4)
+                # )
+                osmesa_opengl_failed = False
+            except ImportError:
+                osmesa_opengl_failed = True
 
         if pyside2_opengl_failed and osmesa_opengl_failed:
             raise OpenCMISSExportThumbnailError('Thumbnail export not supported without optional requirements PySide2 for hardware rendering or OSMesa for software rendering.')
