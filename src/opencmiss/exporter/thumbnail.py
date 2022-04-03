@@ -28,6 +28,7 @@ class ArgonSceneExporter(object):
         self._initialTime = None
         self._finishTime = None
         self._numberOfTimeSteps = 10
+        self._size = 512
 
     def set_document(self, document):
         self._document = document
@@ -115,12 +116,14 @@ class ArgonSceneExporter(object):
         except ImportError:
             pyside2_opengl_failed = True
 
-        osmesa_opengl_failed = True
+        mesa_context = None
+        mesa_opengl_failed = True
         if pyside2_opengl_failed:
             try:
+                from OpenGL import GL
                 from OpenGL import arrays
                 from OpenGL.osmesa import (
-                    OSMesaCreateContextAttribs, OSMESA_FORMAT,
+                    OSMesaCreateContextAttribs, OSMesaMakeCurrent, OSMESA_FORMAT,
                     OSMESA_RGBA, OSMESA_PROFILE, OSMESA_CORE_PROFILE,
                     OSMESA_CONTEXT_MAJOR_VERSION, OSMESA_CONTEXT_MINOR_VERSION,
                     OSMESA_DEPTH_BITS
@@ -134,15 +137,15 @@ class ArgonSceneExporter(object):
                     OSMESA_CONTEXT_MINOR_VERSION, 1,
                     0
                 ])
-                context = OSMesaCreateContextAttribs(attrs, None)
-                # buffer = arrays.GLubyteArray.zeros(
-                #     (512, 512, 4)
-                # )
-                osmesa_opengl_failed = False
+                mesa_context = OSMesaCreateContextAttribs(attrs, None)
+                mesa_buffer = arrays.GLubyteArray.zeros((self._size, self._size, 4))
+                result = OSMesaMakeCurrent(mesa_context, mesa_buffer, GL.GL_UNSIGNED_BYTE, self._size, self._size)
+                if result:
+                    mesa_opengl_failed = False
             except ImportError:
-                osmesa_opengl_failed = True
+                mesa_opengl_failed = True
 
-        if pyside2_opengl_failed and osmesa_opengl_failed:
+        if pyside2_opengl_failed and mesa_opengl_failed:
             raise OpenCMISSExportThumbnailError('Thumbnail export not supported without optional requirements PySide2 for hardware rendering or OSMesa for software rendering.')
 
         zinc_context = self._document.getZincContext()
@@ -160,7 +163,7 @@ class ArgonSceneExporter(object):
                 scene_description = scenes[0]["Sceneviewer"].serialize()
 
                 sceneviewer = sceneviewermodule.createSceneviewer(Sceneviewer.BUFFERING_MODE_DOUBLE, Sceneviewer.STEREO_MODE_DEFAULT)
-                sceneviewer.setViewportSize(512, 512)
+                sceneviewer.setViewportSize(self._size, self._size)
                 # timeout = 120.0
                 # sceneviewer.setRenderTimeout(timeout)
 
@@ -183,4 +186,8 @@ class ArgonSceneExporter(object):
                 sceneviewer.setScene(scene)
                 sceneviewer.renderScene()
 
-                sceneviewer.writeImageToFile(os.path.join(self._output_target, f'{self._prefix}_{name}_thumbnail.jpeg'), False, 512, 512, 4, 0)
+                sceneviewer.writeImageToFile(os.path.join(self._output_target, f'{self._prefix}_{name}_thumbnail.jpeg'), False, self._size, self._size, 4, 0)
+
+        if mesa_context is not None:
+            from OpenGL.osmesa import OSMesaDestroyContext
+            OSMesaDestroyContext(mesa_context)
