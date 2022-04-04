@@ -99,24 +99,26 @@ class ArgonSceneExporter(object):
         Export graphics into an image format.
         """
         pyside2_opengl_failed = True
-        try:
-            from PySide2 import QtGui
+        if os.environ["OC_EXPORTER_RENDERER"] != "osmesa":
+            try:
+                from PySide2 import QtGui
 
-            if QtGui.QGuiApplication.instance() is None:
-                QtGui.QGuiApplication([])
+                if QtGui.QGuiApplication.instance() is None:
+                    QtGui.QGuiApplication([])
 
-            off_screen = QtGui.QOffscreenSurface()
-            off_screen.create()
-            if off_screen.isValid():
-                context = QtGui.QOpenGLContext()
-                if context.create():
-                    context.makeCurrent(off_screen)
-                    pyside2_opengl_failed = False
+                off_screen = QtGui.QOffscreenSurface()
+                off_screen.create()
+                if off_screen.isValid():
+                    context = QtGui.QOpenGLContext()
+                    if context.create():
+                        context.makeCurrent(off_screen)
+                        pyside2_opengl_failed = False
 
-        except ImportError:
-            pyside2_opengl_failed = True
+            except ImportError:
+                pyside2_opengl_failed = True
 
         mesa_context = None
+        mesa_buffer = None
         mesa_opengl_failed = True
         if pyside2_opengl_failed:
             try:
@@ -184,7 +186,7 @@ class ArgonSceneExporter(object):
                         scene = scene_region.getScene()
 
                 sceneviewer.setScene(scene)
-                sceneviewer.renderScene()
+                # sceneviewer.renderScene()
 
                 sceneviewer.writeImageToFile(os.path.join(self._output_target, f'{self._prefix}_{name}_thumbnail.jpeg'), False, self._size, self._size, 4, 0)
 
