@@ -152,6 +152,10 @@ class ArgonSceneExporter(object):
         zinc_context = self._document.getZincContext()
         view_manager = self._document.getViewManager()
 
+        logger = zinc_context.getLogger()
+        logger_notifier = logger.createLoggernotifier()
+        logger_notifier.setCallback(_logger_callback)
+
         root_region = zinc_context.getDefaultRegion()
         sceneviewermodule = zinc_context.getSceneviewermodule()
 
@@ -192,3 +196,7 @@ class ArgonSceneExporter(object):
         if mesa_context is not None:
             from OpenGL.osmesa import OSMesaDestroyContext
             OSMesaDestroyContext(mesa_context)
+
+
+def _logger_callback(message):
+    print("Logger message:", message)
