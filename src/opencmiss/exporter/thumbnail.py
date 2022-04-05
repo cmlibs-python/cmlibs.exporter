@@ -99,7 +99,7 @@ class ArgonSceneExporter(object):
         Export graphics into an image format.
         """
         pyside2_opengl_failed = True
-        if os.environ["OC_EXPORTER_RENDERER"] != "osmesa":
+        if "OC_EXPORTER_RENDERER" not in os.environ or os.environ["OC_EXPORTER_RENDERER"] != "osmesa":
             try:
                 from PySide2 import QtGui
 
@@ -118,7 +118,6 @@ class ArgonSceneExporter(object):
                 pyside2_opengl_failed = True
 
         mesa_context = None
-        mesa_buffer = None
         mesa_opengl_failed = True
         if pyside2_opengl_failed:
             try:
