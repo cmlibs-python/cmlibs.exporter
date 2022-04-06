@@ -104,9 +104,24 @@ class ArgonSceneExporter(object):
                             'eyePosition': scene_description['EyePosition'], 'targetPosition': scene_description['LookatPosition'],
                             'upVector': scene_description['UpVector'], 'viewAngle': scene_description['ViewAngle']}
 
-                view_file = self._form_full_filename(f"{self._prefix}_{name}_view.json")
+                view_file = self._form_full_filename(self._view_filename(name))
                 with open(view_file, 'w') as f:
                     json.dump(viewData, f)
+
+    def _view_filename(self, name):
+        return f"{self._prefix}_{name}_view.json"
+
+    def _define_default_view_obj(self):
+        view_obj = {}
+        view_manager = self._document.getViewManager()
+        view_name = view_manager.getActiveView()
+        if view_name is not None:
+            view_obj = {
+                "Type": "View",
+                "URL": self._view_filename(view_name)
+            }
+
+        return view_obj
 
     def export_webgl(self):
         """
@@ -145,6 +160,7 @@ class ArgonSceneExporter(object):
             return f'{prefix}_{str(i_).zfill(number_of_digits)}.json'
 
         """Write out each resource into their own file"""
+        resource_count = 0
         for i in range(number):
             result, buffer = resources[i].getBuffer()
             if result != ZINC_OK:
@@ -167,10 +183,7 @@ class ArgonSceneExporter(object):
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
-                viewObj = {
-                    "Type": "View",
-                    "URL": self._prefix + '_view.json'
-                }
+                viewObj = self._define_default_view_obj()
 
                 obj = json.loads(buffer)
                 if obj is None:
@@ -182,7 +195,9 @@ class ArgonSceneExporter(object):
             if i == 0:
                 current_file = self._form_full_filename(self._prefix + '_metadata.json')
             else:
-                current_file = self._form_full_filename(_resource_filename(self._prefix, i))
+                current_file = self._form_full_filename(_resource_filename(self._prefix, resource_count))
 
             with open(current_file, 'w') as f:
                 f.write(buffer)
+
+            resource_count += 1
