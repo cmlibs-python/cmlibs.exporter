@@ -125,7 +125,7 @@ class ArgonSceneExporter(object):
                 from OpenGL import arrays
                 from OpenGL.osmesa import (
                     OSMesaCreateContextAttribs, OSMesaMakeCurrent, OSMESA_FORMAT,
-                    OSMESA_RGBA, OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+                    OSMESA_RGBA, OSMESA_PROFILE, OSMESA_COMPAT_PROFILE,
                     OSMESA_CONTEXT_MAJOR_VERSION, OSMESA_CONTEXT_MINOR_VERSION,
                     OSMESA_DEPTH_BITS
                 )
@@ -133,7 +133,7 @@ class ArgonSceneExporter(object):
                 attrs = arrays.GLintArray.asArray([
                     OSMESA_FORMAT, OSMESA_RGBA,
                     OSMESA_DEPTH_BITS, 24,
-                    OSMESA_PROFILE, OSMESA_CORE_PROFILE,
+                    OSMESA_PROFILE, OSMESA_COMPAT_PROFILE,
                     OSMESA_CONTEXT_MAJOR_VERSION, 2,
                     OSMESA_CONTEXT_MINOR_VERSION, 1,
                     0
