@@ -2,18 +2,16 @@
 Export an Argon document to WebGL documents suitable for scaffoldvuer.
 """
 import math
-import os
 import json
 
 from opencmiss.argon.argondocument import ArgonDocument
-from opencmiss.argon.argonlogger import ArgonLogger
-from opencmiss.argon.argonerror import ArgonError
+from opencmiss.exporter.base import BaseExporter
 from opencmiss.exporter.errors import OpenCMISSExportWebGLError
 
 from opencmiss.zinc.status import OK as ZINC_OK
 
 
-class ArgonSceneExporter(object):
+class ArgonSceneExporter(BaseExporter):
     """
     Export a visualisation described by an Argon document to webGL.
     """
@@ -23,61 +21,18 @@ class ArgonSceneExporter(object):
         :param output_target: The target directory to export the visualisation to.
         :param output_prefix: The prefix for the exported file(s).
         """
+        super(ArgonSceneExporter, self).__init__("ArgonSceneExporterWebGL" if output_prefix is None else output_prefix)
         self._output_target = output_target
-        self._document = None
-        self._filename = None
-        self._prefix = "ArgonSceneExporterWebGL" if output_prefix is None else output_prefix
-        self._numberOfTimeSteps = 10
-        self._initialTime = None
-        self._finishTime = None
-
-    def set_document(self, document):
-        self._document = document
-
-    def set_filename(self, filename):
-        self._filename = filename
-
-    def load(self, filename):
-        """
-        Loads the named Argon file and on success sets filename as the current location.
-        Emits documentChange separately if new document loaded, including if existing document cleared due to load failure.
-        :return  True on success, otherwise False.
-        """
-        if filename is None:
-            return False
-
-        try:
-            with open(filename, 'r') as f:
-                state = f.read()
-
-            current_wd = os.getcwd()
-            # set current directory to path from file, to support scripts and FieldML with external resources
-            if not os.path.isabs(filename):
-                filename = os.path.abspath(filename)
-            path = os.path.dirname(filename)
-            os.chdir(path)
-            self._document = ArgonDocument()
-            self._document.initialiseVisualisationContents()
-            self._document.deserialize(state)
-            os.chdir(current_wd)
-            return True
-        except (ArgonError, IOError, ValueError) as e:
-            ArgonLogger.getLogger().error("Failed to load Argon visualisation " + filename + ": " + str(e))
-        except Exception as e:
-            ArgonLogger.getLogger().error("Failed to load Argon visualisation " + filename + ": Unknown error " + str(e))
-
-        return False
-
-    def set_parameters(self, parameters):
-        self._numberOfTimeSteps = parameters["numberOfTimeSteps"]
-        self._initialTime = parameters["initialTime"]
-        self._finishTime = parameters["finishTime"]
-        self._prefix = parameters["prefix"]
-
-    def _form_full_filename(self, filename):
-        return filename if self._output_target is None else os.path.join(self._output_target, filename)
 
     def export(self, output_target=None):
+        """
+        Export the current document to *output_target*. If no *output_target* is given then
+        the *output_target* set at initialisation is used.
+
+        If there is no current document then one will be loaded from the current filename.
+
+        :param output_target: Output directory location.
+        """
         if output_target is not None:
             self._output_target = output_target
 
