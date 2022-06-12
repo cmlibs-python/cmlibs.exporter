@@ -7,6 +7,21 @@ OpenCMISS exporter classes.  This software can be found on PyPi and installed wi
 
   pip install opencmiss.exporter
 
+When using the thumbnail exporter there are additional requirements for hardware or software rendering.
+To install the thumbnail exporter with support for hardware rendering install *opencmiss.exporter* with::
+
+  pip install 'opencmiss.exporter[thumbnail_hardware]'
+
+To install the thumbnail exporter with support for software rendering install *opencmiss.exporter* with::
+
+  pip install 'opencmiss.exporter[thumbnail_software]'
+
+To force the use of the software renderer even when hardware rendering is available, set an environment variable like so::
+
+  OC_EXPORTER_RENDERER=osmesa
+
+either in the environment the exporter is run in or before calling the export thumbnail method.
+
 Distribution
 ============
 

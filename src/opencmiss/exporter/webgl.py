@@ -2,18 +2,16 @@
 Export an Argon document to WebGL documents suitable for scaffoldvuer.
 """
 import math
-import os
 import json
 
 from opencmiss.argon.argondocument import ArgonDocument
-from opencmiss.argon.argonlogger import ArgonLogger
-from opencmiss.argon.argonerror import ArgonError
+from opencmiss.exporter.base import BaseExporter
 from opencmiss.exporter.errors import OpenCMISSExportWebGLError
 
 from opencmiss.zinc.status import OK as ZINC_OK
 
 
-class ArgonSceneExporter(object):
+class ArgonSceneExporter(BaseExporter):
     """
     Export a visualisation described by an Argon document to webGL.
     """
@@ -23,61 +21,18 @@ class ArgonSceneExporter(object):
         :param output_target: The target directory to export the visualisation to.
         :param output_prefix: The prefix for the exported file(s).
         """
+        super(ArgonSceneExporter, self).__init__("ArgonSceneExporterWebGL" if output_prefix is None else output_prefix)
         self._output_target = output_target
-        self._document = None
-        self._filename = None
-        self._prefix = "ArgonSceneExporterWebGL" if output_prefix is None else output_prefix
-        self._numberOfTimeSteps = 10
-        self._initialTime = None
-        self._finishTime = None
-
-    def set_document(self, document):
-        self._document = document
-
-    def set_filename(self, filename):
-        self._filename = filename
-
-    def load(self, filename):
-        """
-        Loads the named Argon file and on success sets filename as the current location.
-        Emits documentChange separately if new document loaded, including if existing document cleared due to load failure.
-        :return  True on success, otherwise False.
-        """
-        if filename is None:
-            return False
-
-        try:
-            with open(filename, 'r') as f:
-                state = f.read()
-
-            current_wd = os.getcwd()
-            # set current directory to path from file, to support scripts and FieldML with external resources
-            if not os.path.isabs(filename):
-                filename = os.path.abspath(filename)
-            path = os.path.dirname(filename)
-            os.chdir(path)
-            self._document = ArgonDocument()
-            self._document.initialiseVisualisationContents()
-            self._document.deserialize(state)
-            os.chdir(current_wd)
-            return True
-        except (ArgonError, IOError, ValueError) as e:
-            ArgonLogger.getLogger().error("Failed to load Argon visualisation " + filename + ": " + str(e))
-        except Exception as e:
-            ArgonLogger.getLogger().error("Failed to load Argon visualisation " + filename + ": Unknown error " + str(e))
-
-        return False
-
-    def set_parameters(self, parameters):
-        self._numberOfTimeSteps = parameters["numberOfTimeSteps"]
-        self._initialTime = parameters["initialTime"]
-        self._finishTime = parameters["finishTime"]
-        self._prefix = parameters["prefix"]
-
-    def _form_full_filename(self, filename):
-        return filename if self._output_target is None else os.path.join(self._output_target, filename)
 
     def export(self, output_target=None):
+        """
+        Export the current document to *output_target*. If no *output_target* is given then
+        the *output_target* set at initialisation is used.
+
+        If there is no current document then one will be loaded from the current filename.
+
+        :param output_target: Output directory location.
+        """
         if output_target is not None:
             self._output_target = output_target
 
@@ -104,9 +59,24 @@ class ArgonSceneExporter(object):
                             'eyePosition': scene_description['EyePosition'], 'targetPosition': scene_description['LookatPosition'],
                             'upVector': scene_description['UpVector'], 'viewAngle': scene_description['ViewAngle']}
 
-                view_file = self._form_full_filename(f"{self._prefix}_{name}_view.json")
+                view_file = self._form_full_filename(self._view_filename(name))
                 with open(view_file, 'w') as f:
                     json.dump(viewData, f)
+
+    def _view_filename(self, name):
+        return f"{self._prefix}_{name}_view.json"
+
+    def _define_default_view_obj(self):
+        view_obj = {}
+        view_manager = self._document.getViewManager()
+        view_name = view_manager.getActiveView()
+        if view_name is not None:
+            view_obj = {
+                "Type": "View",
+                "URL": self._view_filename(view_name)
+            }
+
+        return view_obj
 
     def export_webgl(self):
         """
@@ -145,6 +115,7 @@ class ArgonSceneExporter(object):
             return f'{prefix}_{str(i_).zfill(number_of_digits)}.json'
 
         """Write out each resource into their own file"""
+        resource_count = 0
         for i in range(number):
             result, buffer = resources[i].getBuffer()
             if result != ZINC_OK:
@@ -167,10 +138,7 @@ class ArgonSceneExporter(object):
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
-                viewObj = {
-                    "Type": "View",
-                    "URL": self._prefix + '_view.json'
-                }
+                viewObj = self._define_default_view_obj()
 
                 obj = json.loads(buffer)
                 if obj is None:
@@ -182,7 +150,9 @@ class ArgonSceneExporter(object):
             if i == 0:
                 current_file = self._form_full_filename(self._prefix + '_metadata.json')
             else:
-                current_file = self._form_full_filename(_resource_filename(self._prefix, i))
+                current_file = self._form_full_filename(_resource_filename(self._prefix, resource_count))
 
             with open(current_file, 'w') as f:
                 f.write(buffer)
+
+            resource_count += 1
