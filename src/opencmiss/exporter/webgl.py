@@ -78,6 +78,20 @@ class ArgonSceneExporter(BaseExporter):
 
         return view_obj
 
+    def _define_settings_obj(self):
+        settings_obj = None
+
+        if self._initialTime is not None and self._finishTime is not None:
+            time_diff = self._finishTime = self._initialTime
+            duration = f"PT{time_diff}S"
+            settings_obj = {
+                "Type": "Settings",
+                "Duration": duration,
+                "OriginalDuration": duration,
+            }
+
+        return settings_obj
+
     def export_webgl(self):
         """
         Export graphics into JSON format, one json export represents one
@@ -86,10 +100,6 @@ class ArgonSceneExporter(BaseExporter):
         scene = self._document.getRootRegion().getZincRegion().getScene()
         sceneSR = scene.createStreaminformationScene()
         sceneSR.setIOFormat(sceneSR.IO_FORMAT_THREEJS)
-        """
-        Output frames of the deforming heart between time 0 to 1,
-        this matches the number of frame we have read in previously
-        """
         if not (self._initialTime is None or self._finishTime is None):
             sceneSR.setNumberOfTimeSteps(self._numberOfTimeSteps)
             sceneSR.setInitialTime(self._initialTime)
@@ -138,13 +148,18 @@ class ArgonSceneExporter(BaseExporter):
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
-                viewObj = self._define_default_view_obj()
+                view_obj = self._define_default_view_obj()
+
+                settings_obj = self._define_settings_obj()
 
                 obj = json.loads(buffer)
                 if obj is None:
                     raise OpenCMISSExportWebGLError('There is nothing to export')
 
-                obj.append(viewObj)
+                obj.append(view_obj)
+                if settings_obj is not None:
+                    obj.append(settings_obj)
+
                 buffer = json.dumps(obj)
 
             if i == 0:
