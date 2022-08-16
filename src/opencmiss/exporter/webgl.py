@@ -82,7 +82,8 @@ class ArgonSceneExporter(BaseExporter):
         settings_obj = None
 
         if self._initialTime is not None and self._finishTime is not None:
-            time_diff = self._finishTime = self._initialTime
+            # /P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/;
+            time_diff = int(self._finishTime - self._initialTime)
             duration = f"PT{time_diff}S"
             settings_obj = {
                 "Type": "Settings",
@@ -171,3 +172,6 @@ class ArgonSceneExporter(BaseExporter):
                 f.write(buffer)
 
             resource_count += 1
+
+    def metadata_file(self):
+        return self._form_full_filename(self._prefix + '_metadata.json')
