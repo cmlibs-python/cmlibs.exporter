@@ -7,5 +7,5 @@ class OpenCMISSExportWebGLError(OpenCMISSExportError):
     pass
 
 
-class OpenCMISSExportThumbnailError(OpenCMISSExportError):
+class OpenCMISSExportImageError(OpenCMISSExportError):
     pass
