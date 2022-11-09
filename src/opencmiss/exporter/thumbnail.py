@@ -7,11 +7,7 @@ from opencmiss.exporter.baseimage import BaseImageExporter
 class ArgonSceneExporter(BaseImageExporter):
     """
     Export a visualisation described by an Argon document to JPEG thumbnail.
-    By default the export will be use PySide2 to render the scene.
-    An alternative is to use OSMesa for software rendering.
-    To use OSMesa as the renderer either set the environment variable
-    OC_EXPORTER_RENDERER to 'osmesa' or not have PySide2 available in the
-    calling environment.
+    See the BaseImageExporter for rendering options.
     """
 
     def __init__(self, output_target=None, output_prefix=None):

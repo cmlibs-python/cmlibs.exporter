@@ -1,5 +1,5 @@
 """
-Export an Argon document to a JPEG file of size 512x512.
+Base class for exporting an Argon document to a JPEG image.
 """
 import os
 import json
