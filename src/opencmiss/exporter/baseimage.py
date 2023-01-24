@@ -64,10 +64,10 @@ class BaseImageExporter(BaseExporter):
         """
         Export graphics into an image format.
         """
-        pyside2_opengl_failed = True
+        pyside6_opengl_failed = True
         if "OC_EXPORTER_RENDERER" not in os.environ or os.environ["OC_EXPORTER_RENDERER"] != "osmesa":
             try:
-                from PySide2 import QtGui
+                from PySide6 import QtGui
 
                 if QtGui.QGuiApplication.instance() is None:
                     QtGui.QGuiApplication([])
@@ -78,14 +78,14 @@ class BaseImageExporter(BaseExporter):
                     context = QtGui.QOpenGLContext()
                     if context.create():
                         context.makeCurrent(off_screen)
-                        pyside2_opengl_failed = False
+                        pyside6_opengl_failed = False
 
             except ImportError:
-                pyside2_opengl_failed = True
+                pyside6_opengl_failed = True
 
         mesa_context = None
         mesa_opengl_failed = True
-        if pyside2_opengl_failed:
+        if pyside6_opengl_failed:
             try:
                 from OpenGL import GL
                 from OpenGL import arrays
@@ -112,7 +112,7 @@ class BaseImageExporter(BaseExporter):
             except ImportError:
                 mesa_opengl_failed = True
 
-        if pyside2_opengl_failed and mesa_opengl_failed:
+        if pyside6_opengl_failed and mesa_opengl_failed:
             raise OpenCMISSExportImageError('Image export not supported without optional requirements PySide2 for hardware rendering or OSMesa for software rendering.')
 
         zinc_context = self._document.getZincContext()
