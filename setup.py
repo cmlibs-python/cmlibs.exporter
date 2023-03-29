@@ -51,7 +51,7 @@ setup(
     zip_safe=False,
     install_requires=requires,
     extras_require={
-        "thumbnail_hardware": ["PySide2"],
+        "thumbnail_hardware": ["PySide6"],
         "thumbnail_software": ["PyOpenGL"],
     }
 
