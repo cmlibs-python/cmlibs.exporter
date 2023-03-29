@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 
 here = os.path.abspath(os.path.dirname(__file__))
 
-with open(os.path.join(here, 'src', 'opencmiss', 'exporter', '__init__.py')) as fd:
+with open(os.path.join(here, 'src', 'cmlibs', 'exporter', '__init__.py')) as fd:
     version = re.search(r'^__version__\s*=\s*[\'"]([^\'"]*)[\'"]',
                         fd.read(), re.MULTILINE).group(1)
 
@@ -31,10 +31,10 @@ readme.append('')
 
 software_licence = readfile("LICENSE")
 
-requires = ['opencmiss.argon >= 0.3.0', 'opencmiss.zinc']
+requires = ['cmlibs.argon >= 0.3.0', 'cmlibs.zinc']
 
 setup(
-    name='opencmiss.exporter',
+    name='cmlibs.exporter',
     version=version,
     description='OpenCMISS Export functions.',
     long_description='\n'.join(readme) + software_licence,
