@@ -1,7 +1,7 @@
 import os.path
 import unittest
 
-from opencmiss.exporter import thumbnail
+from cmlibs.exporter import thumbnail
 
 
 here = os.path.abspath(os.path.dirname(__file__))

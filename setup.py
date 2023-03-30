@@ -31,18 +31,18 @@ readme.append('')
 
 software_licence = readfile("LICENSE")
 
-requires = ['cmlibs.argon >= 0.3.0', 'cmlibs.zinc']
+requires = ['cmlibs.argon >= 0.4.0', 'cmlibs.zinc']
 
 setup(
     name='cmlibs.exporter',
     version=version,
-    description='OpenCMISS Export functions.',
+    description='CMLibs Export functions.',
     long_description='\n'.join(readme) + software_licence,
     long_description_content_type='text/x-rst',
     classifiers=[],
     author='Hugh Sorby',
     author_email='h.sorby@auckland.ac.nz',
-    url='https://github.com/OpenCMISS-Bindings/opencmiss.exporter',
+    url='https://github.com/CMLibs-Bindings/cmlibs.exporter',
     license='Apache Software License',
     license_files=("LICENSE",),
     packages=find_packages("src"),

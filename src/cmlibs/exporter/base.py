@@ -1,8 +1,8 @@
 import os
 
-from opencmiss.argon.argondocument import ArgonDocument
-from opencmiss.argon.argonerror import ArgonError
-from opencmiss.argon.argonlogger import ArgonLogger
+from cmlibs.argon.argondocument import ArgonDocument
+from cmlibs.argon.argonerror import ArgonError
+from cmlibs.argon.argonlogger import ArgonLogger
 
 
 class BaseExporter(object):

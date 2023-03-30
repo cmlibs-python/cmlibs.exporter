@@ -1,7 +1,7 @@
-OpenCMISS Exporter
-==================
+CMLibs Exporter
+===============
 
-**OpenCMISS Exporter** is a Python package for exporting Argon documents to different formats.
+**CMLibs Exporter** is a Python package for exporting Argon documents to different formats.
 The exporter can export an Argon document to the following formats:
 
 * webGL
@@ -16,7 +16,7 @@ The JSON description is exported to a format `@abi-software/scaffoldvuer <https:
 
 Usage::
 
- from opencmiss.exporter import webgl
+ from cmlibs.exporter import webgl
 
  argon_document = "argon-document.json"
  output_directory = "."
@@ -35,7 +35,7 @@ If an Argon document describes a time varying scene then only one thumbnail will
 
 Usage::
 
- from opencmiss.exporter import thumbnail
+ from cmlibs.exporter import thumbnail
 
  argon_document = "argon-document.json"
  output_directory = "."
@@ -53,7 +53,7 @@ If an Argon document describes a time varying scene then only one image will be 
 
 Usage::
 
- from opencmiss.exporter import image
+ from cmlibs.exporter import image
 
  argon_document = "argon-document.json"
  output_directory = "."
@@ -68,40 +68,40 @@ Package API
 webGL Module
 ************
 
-.. automodule:: opencmiss.exporter.webgl
+.. automodule:: cmlibs.exporter.webgl
 
-.. autoclass:: opencmiss.exporter.webgl.ArgonSceneExporter
+.. autoclass:: cmlibs.exporter.webgl.ArgonSceneExporter
    :members:
 
 Thumbnail Module
 ****************
 
-.. automodule:: opencmiss.exporter.thumbnail
+.. automodule:: cmlibs.exporter.thumbnail
 
-.. autoclass:: opencmiss.exporter.thumbnail.ArgonSceneExporter
+.. autoclass:: cmlibs.exporter.thumbnail.ArgonSceneExporter
    :members:
 
 Image Module
 ************
 
-.. automodule:: opencmiss.exporter.image
+.. automodule:: cmlibs.exporter.image
 
-.. autoclass:: opencmiss.exporter.image.ArgonSceneExporter
+.. autoclass:: cmlibs.exporter.image.ArgonSceneExporter
    :members:
 
 Base Module
 ***********
 
-.. automodule:: opencmiss.exporter.base
+.. automodule:: cmlibs.exporter.base
 
-.. autoclass:: opencmiss.exporter.base.BaseExporter
+.. autoclass:: cmlibs.exporter.base.BaseExporter
    :members:
 
 Base Image Module
 *****************
 
-.. automodule:: opencmiss.exporter.baseimage
+.. automodule:: cmlibs.exporter.baseimage
 
-.. autoclass:: opencmiss.exporter.baseimage.BaseImageExporter
+.. autoclass:: cmlibs.exporter.baseimage.BaseImageExporter
    :members:
 

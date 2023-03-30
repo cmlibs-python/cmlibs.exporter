@@ -1,7 +1,7 @@
 """
 Export an Argon document to a JPEG file of size 512x512.
 """
-from opencmiss.exporter.baseimage import BaseImageExporter
+from cmlibs.exporter.baseimage import BaseImageExporter
 
 
 class ArgonSceneExporter(BaseImageExporter):

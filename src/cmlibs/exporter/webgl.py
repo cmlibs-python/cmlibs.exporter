@@ -4,11 +4,11 @@ Export an Argon document to WebGL documents suitable for scaffoldvuer.
 import math
 import json
 
-from opencmiss.argon.argondocument import ArgonDocument
-from opencmiss.exporter.base import BaseExporter
-from opencmiss.exporter.errors import OpenCMISSExportWebGLError
+from cmlibs.argon.argondocument import ArgonDocument
+from cmlibs.exporter.base import BaseExporter
+from cmlibs.exporter.errors import ExportWebGLError
 
-from opencmiss.zinc.status import OK as ZINC_OK
+from cmlibs.zinc.status import OK as ZINC_OK
 
 
 class ArgonSceneExporter(BaseExporter):
@@ -155,7 +155,7 @@ class ArgonSceneExporter(BaseExporter):
 
                 obj = json.loads(buffer)
                 if obj is None:
-                    raise OpenCMISSExportWebGLError('There is nothing to export')
+                    raise ExportWebGLError('There is nothing to export')
 
                 obj.append(view_obj)
                 if settings_obj is not None:

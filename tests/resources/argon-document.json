@@ -506,10 +506,10 @@
       }
     ]
   },
-  "OpenCMISS-Argon Version": [
+  "CMLibs Argon Version": [
     "0",
-    "3",
-    "1"
+    "4",
+    "0"
   ],
   "RootRegion": {
     "ChildRegions": [

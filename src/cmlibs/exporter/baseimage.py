@@ -4,10 +4,10 @@ Base class for exporting an Argon document to a JPEG image.
 import os
 import json
 
-from opencmiss.argon.argondocument import ArgonDocument
-from opencmiss.exporter.base import BaseExporter
-from opencmiss.exporter.errors import OpenCMISSExportImageError
-from opencmiss.zinc.sceneviewer import Sceneviewer
+from cmlibs.argon.argondocument import ArgonDocument
+from cmlibs.exporter.base import BaseExporter
+from cmlibs.exporter.errors import ExportImageError
+from cmlibs.zinc.sceneviewer import Sceneviewer
 
 
 class BaseImageExporter(BaseExporter):
@@ -113,7 +113,7 @@ class BaseImageExporter(BaseExporter):
                 mesa_opengl_failed = True
 
         if pyside6_opengl_failed and mesa_opengl_failed:
-            raise OpenCMISSExportImageError('Image export not supported without optional requirements PySide6 for hardware rendering or OSMesa for software rendering.')
+            raise ExportImageError('Image export not supported without optional requirements PySide6 for hardware rendering or OSMesa for software rendering.')
 
         zinc_context = self._document.getZincContext()
         view_manager = self._document.getViewManager()
