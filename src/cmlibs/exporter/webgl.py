@@ -95,10 +95,19 @@ class ArgonSceneExporter(BaseExporter):
 
     def export_webgl(self):
         """
-        Export graphics into JSON format, one json export represents one
-        surface graphics.
+        Export graphics into JSON format, one json export represents one Zinc graphics.
         """
         scene = self._document.getRootRegion().getZincRegion().getScene()
+        self.export_webgl_from_scene(scene)
+
+    def export_webgl_from_scene(self, scene, scene_filter=None):
+        """
+        Export graphics from a Zinc Scene into WebGL JSON format.
+
+        :param scene: The Zinc Scene object to be exported.
+        :param scene_filter: Optional; A Zinc Scenefilter object associated with the Zinc scene, allowing the user to filter which
+            graphics are included in the export.
+        """
         sceneSR = scene.createStreaminformationScene()
         sceneSR.setIOFormat(sceneSR.IO_FORMAT_THREEJS)
         if not (self._initialTime is None or self._finishTime is None):
@@ -108,6 +117,10 @@ class ArgonSceneExporter(BaseExporter):
             """ We want the geometries and colours change overtime """
             sceneSR.setOutputTimeDependentVertices(1)
             sceneSR.setOutputTimeDependentColours(1)
+
+        # Optionally filter the scene.
+        if scene_filter:
+            sceneSR.setScenefilter(scene_filter)
 
         number = sceneSR.getNumberOfResourcesRequired()
         if number == 0:
@@ -149,7 +162,7 @@ class ArgonSceneExporter(BaseExporter):
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
-                view_obj = self._define_default_view_obj()
+                view_obj = self._define_default_view_obj() if self._document else None
 
                 settings_obj = self._define_settings_obj()
 
