@@ -26,6 +26,17 @@ Usage::
  exporter.export()
 
 
+It is also possible to use the WebGL exporter to produce a JSON description of a Zinc scene without embedding it in an Argon document.
+This can be achieved with the :code:`export_webgl_from_scene` method. This method has one required parameter (:code:`scene`) and one
+optional parameter (:code:`scene_filter`). The :code:`scene` parameter is the Zinc Scene object to be exported. The :code:`scene_filter`
+parameter is a Zinc Scenefilter object associated with the Zinc scene and gives the user the option to filter which graphics are included
+in the export.
+
+Usage::
+
+ exporter = webgl.ArgonSceneExporter(output_target=output_directory)
+ exporter.export_webgl_from_scene(scene)
+
 Thumbnail
 ---------
 
