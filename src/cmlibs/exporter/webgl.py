@@ -94,13 +94,19 @@ class ArgonSceneExporter(BaseExporter):
         return settings_obj
 
     def export_webgl(self):
+        """
+        Export graphics into JSON format, one json export represents one Zinc graphics.
+        """
         scene = self._document.getRootRegion().getZincRegion().getScene()
         self.export_webgl_from_scene(scene)
 
     def export_webgl_from_scene(self, scene, scene_filter=None):
         """
-        Export graphics into JSON format, one json export represents one
-        surface graphics.
+        Export graphics from a Zinc Scene into WebGL JSON format.
+
+        :param scene: The Zinc Scene object to be exported.
+        :param scene_filter: Optional; A Zinc Scenefilter object associated with the Zinc scene, allowing the user to filter which
+            graphics are included in the export.
         """
         sceneSR = scene.createStreaminformationScene()
         sceneSR.setIOFormat(sceneSR.IO_FORMAT_THREEJS)
