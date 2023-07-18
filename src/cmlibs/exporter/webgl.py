@@ -177,7 +177,7 @@ class ArgonSceneExporter(BaseExporter):
                 buffer = json.dumps(obj)
 
             if i == 0:
-                current_file = self._form_full_filename(self._prefix + '_metadata.json')
+                current_file = self.metadata_file()
             else:
                 current_file = self._form_full_filename(_resource_filename(self._prefix, resource_count))
 
