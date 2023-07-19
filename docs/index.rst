@@ -5,6 +5,9 @@ CMLibs Exporter
 The exporter can export an Argon document to the following formats:
 
 * webGL
+* VTK
+* Wavefront
+* STL
 * Thumbnail
 * Image
 
@@ -36,6 +39,60 @@ Usage::
 
  exporter = webgl.ArgonSceneExporter(output_target=output_directory)
  exporter.export_webgl_from_scene(scene)
+
+VTK
+---
+
+The VTK export takes scenes described in an Argon document and produces a VTK document for each of the scenes.
+The VTK export does not currently support time varying scenes.
+If an Argon document describes a time varying scene then VTK document(s) will be created only at the default time.
+
+Usage::
+
+ from cmlibs.exporter import vtk
+
+ argon_document = "argon-document.json"
+ output_directory = "."
+
+ exporter = vtk.ArgonSceneExporter(output_target=output_directory)
+ exporter.load(argon_document)
+ exporter.export()
+
+Wavefront
+---------
+
+The wavefront export takes scenes described in an Argon document and produces a main wavefront file that references wavefront files for each of the scenes.
+The wavefront export does not currently support time varying scenes.
+If an Argon document describes a time varying scene then wavefront file(s) will only be created at the default time.
+
+Usage::
+
+ from cmlibs.exporter import wavefront
+
+ argon_document = "argon-document.json"
+ output_directory = "."
+
+ exporter = wavefront.ArgonSceneExporter(output_target=output_directory)
+ exporter.load(argon_document)
+ exporter.export()
+
+STL
+---
+
+The STL export takes scenes described in an Argon document and produces an STL document for the scene.
+The STL export does not currently support time varying scenes.
+If an Argon document describes a time varying scene then an STL file will only be created at the default time.
+
+Usage::
+
+ from cmlibs.exporter import stl
+
+ argon_document = "argon-document.json"
+ output_directory = "."
+
+ exporter = stl.ArgonSceneExporter(output_target=output_directory)
+ exporter.load(argon_document)
+ exporter.export()
 
 Thumbnail
 ---------
@@ -82,6 +139,30 @@ webGL Module
 .. automodule:: cmlibs.exporter.webgl
 
 .. autoclass:: cmlibs.exporter.webgl.ArgonSceneExporter
+   :members:
+
+VTK Module
+**********
+
+.. automodule:: cmlibs.exporter.vtk
+
+.. autoclass:: cmlibs.exporter.vtk.ArgonSceneExporter
+   :members:
+
+Wavefront Module
+****************
+
+.. automodule:: cmlibs.exporter.wavefront
+
+.. autoclass:: cmlibs.exporter.wavefront.ArgonSceneExporter
+   :members:
+
+STL Module
+**********
+
+.. automodule:: cmlibs.exporter.stl
+
+.. autoclass:: cmlibs.exporter.stl.ArgonSceneExporter
    :members:
 
 Thumbnail Module
