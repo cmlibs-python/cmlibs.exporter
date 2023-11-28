@@ -33,15 +33,10 @@ class ArgonSceneExporter(BaseExporter):
 
         :param output_target: Output directory location.
         """
+        super().export()
+
         if output_target is not None:
             self._output_target = output_target
-
-        if self._document is None:
-            self._document = ArgonDocument()
-            self._document.initialiseVisualisationContents()
-            self.load(self._filename)
-
-        self._document.checkVersion("0.3.0")
 
         self.export_view()
         self.export_webgl()

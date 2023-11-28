@@ -49,7 +49,12 @@ class BaseExporter(object):
         self._prefix = parameters["prefix"]
 
     def export(self):
-        raise NotImplementedError("export() not implemented")
+        if self._document is None:
+            self._document = ArgonDocument()
+            self._document.initialiseVisualisationContents()
+            self.load(self._filename)
+
+        self._document.checkVersion("0.3.0")
 
     def load(self, filename):
         """

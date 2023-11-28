@@ -43,20 +43,16 @@ class BaseImageExporter(BaseExporter):
 
         :param output_target: Output directory location.
         """
+        super().export()
+
         if output_target is not None:
             self._output_target = output_target
 
-        if self._document is None:
-            self._document = ArgonDocument()
-            self._document.initialiseVisualisationContents()
-            self.load(self._filename)
-        else:
+        if self._document is not None:
             state = self._document.serialize()
             self._document.freeVisualisationContents()
             self._document.initialiseVisualisationContents()
             self._document.deserialize(state)
-
-        self._document.checkVersion("0.3.0")
 
         self.export_image()
 
