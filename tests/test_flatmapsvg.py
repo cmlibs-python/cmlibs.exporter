@@ -33,6 +33,6 @@ class Exporter(unittest.TestCase):
         tree = ET.parse(flatmap_svg_file)
         root = tree.getroot()
 
-        self.assertEqual(45, len(root))
+        self.assertEqual(58, len(root))
 
         os.remove(flatmap_svg_file)

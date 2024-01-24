@@ -4,6 +4,7 @@ flatmaps from.
 """
 import os
 
+from cmlibs.zinc.field import Field
 from cmlibs.zinc.node import Node
 from cmlibs.zinc.result import RESULT_OK
 
@@ -68,10 +69,44 @@ class ArgonSceneExporter(BaseExporter):
         region = scene.getRegion()
         path_points = _analyze_elements(region, "coordinates")
         bezier = _calculate_bezier_control_points(path_points)
-        svg_string = _write_into_svg_format(bezier)
+        markers = _calculate_markers(region, "coordinates")
+        svg_string = _write_into_svg_format(bezier, markers)
 
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
+
+
+def _calculate_markers(region, coordinate_field_name):
+    probable_group_names = ['marker', 'markers']
+    fm = region.getFieldmodule()
+    coordinate_field = fm.findFieldByName('marker_data_coordinates').castFiniteElement()
+    name_field = fm.findFieldByName('marker_data_name')
+
+    markers_group = Field()
+    for probable_group_name in probable_group_names:
+        markers_group = fm.findFieldByName(probable_group_name)
+        if markers_group.isValid():
+            break
+
+    marker_data = []
+    if markers_group.isValid():
+        markers_group = markers_group.castGroup()
+        marker_node_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_DATAPOINTS)
+        marker_datapoints = markers_group.getNodesetGroup(marker_node_set)
+        marker_iterator = marker_datapoints.createNodeiterator()
+        components_count = coordinate_field.getNumberOfComponents()
+
+        marker = marker_iterator.next()
+        fc = fm.createFieldcache()
+
+        while marker.isValid():
+            fc.setNode(marker)
+            result, values = coordinate_field.evaluateReal(fc, components_count)
+            name = name_field.evaluateString(fc)
+            marker_data.append((values[:2], name))
+            marker = marker_iterator.next()
+
+    return marker_data
 
 
 def _analyze_elements(region, coordinate_field_name):
@@ -157,12 +192,13 @@ def _calculate_bezier_control_points(point_data):
     return bezier
 
 
-def _write_into_svg_format(bezier_path):
+def _write_into_svg_format(bezier_path, markers):
+    title_count = 0
     svg = '<svg width="1000" height="1000" xmlns="http://www.w3.org/2000/svg">\n'
     for i in range(len(bezier_path)):
         b = bezier_path[i]
         colour = 'blue' if i % 2 == 0 else 'red'
-        svg += f'<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{colour}" fill-opacity="0.0"/>\n'
+        svg += f'  <path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{colour}" fill-opacity="0.0"/>\n'
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]
@@ -172,6 +208,12 @@ def _write_into_svg_format(bezier_path):
     #     svg += f'<circle cx="{b[3][0]}" cy="{b[3][1]}" r="2" fill="brown"/>\n'
     #     svg += f'<path d="M {b[0][0]} {b[0][1]} L {b[1][0]} {b[1][1]}" stroke="pink"/>\n'
     #     svg += f'<path d="M {b[3][0]} {b[3][1]} L {b[2][0]} {b[2][1]}" stroke="orange"/>\n'
+
+    for marker in markers:
+        title_count += 1
+        svg += f'  <circle cx="{marker[0][0]}" cy="{marker[0][1]}" r="3" fill="orange">\n'
+        svg += f'    <title id="title{title_count}">.id({marker[1]})</title>\n'
+        svg += '  </circle>\n'
 
     svg += '</svg>'
 
