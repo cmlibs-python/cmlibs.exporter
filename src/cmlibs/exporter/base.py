@@ -56,6 +56,9 @@ class BaseExporter(object):
 
         self._document.checkVersion("0.3.0")
 
+    def export_from_scene(self, scene, scene_filter=None):
+        raise NotImplementedError()
+
     def load(self, filename):
         """
         Loads the named Argon file and on success sets filename as the current location.

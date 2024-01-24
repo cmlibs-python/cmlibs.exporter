@@ -4,13 +4,11 @@ flatmaps from.
 """
 import os
 
-from cmlibs.zinc.field import Field
 from cmlibs.zinc.node import Node
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
 from cmlibs.maths.vectorops import sub, div, add
-from cmlibs.utils.zinc.general import ChangeManager
 
 
 class ArgonSceneExporter(BaseExporter):
@@ -42,6 +40,16 @@ class ArgonSceneExporter(BaseExporter):
 
         self.export_flatmapsvg()
 
+    def export_from_scene(self, scene, scene_filter=None):
+        """
+        Export graphics from a Zinc Scene into Flatmap SVG format.
+
+        :param scene: The Zinc Scene object to be exported.
+        :param scene_filter: Optional; A Zinc Scenefilter object associated with the Zinc scene, allowing the user to filter which
+            graphics are included in the export.
+        """
+        self.export_flatmapsvg_from_scene(scene, scene_filter)
+
     def export_flatmapsvg(self):
         """
         Export graphics into JSON format, one json export represents one Zinc graphics.
@@ -51,78 +59,100 @@ class ArgonSceneExporter(BaseExporter):
 
     def export_flatmapsvg_from_scene(self, scene, scene_filter=None):
         """
-        Export graphics from a Zinc Scene into WebGL JSON format.
+        Export graphics from a Zinc Scene into Flatmap SVG format.
 
         :param scene: The Zinc Scene object to be exported.
         :param scene_filter: Optional; A Zinc Scenefilter object associated with the Zinc scene, allowing the user to filter which
             graphics are included in the export.
         """
         region = scene.getRegion()
-        data = _calculate_node_derivative(region, "coordinates")
-        bezier = _calculate_bezier_control_points(data)
+        path_points = _analyze_elements(region, "coordinates")
+        bezier = _calculate_bezier_control_points(path_points)
         svg_string = _write_into_svg_format(bezier)
 
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
 
 
-def _calculate_node_derivative(region, coordinate_field_name):
+def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
-    fc = fm.createFieldcache()
-    node_derivatives = [Node.VALUE_LABEL_D_DS1, Node.VALUE_LABEL_D_DS2]
-    derivatives_count = len(node_derivatives)
-
-    nodes = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
-    node_iter = nodes.createNodeiterator()
-
+    mesh = fm.findMeshByDimension(1)
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
-    components_count = coordinates.getNumberOfComponents()
 
-    data = []
-    with ChangeManager(fm):
+    if mesh is None:
+        return []
 
-        node = node_iter.next()
-        while node.isValid():
-            fc.setNode(node)
-            result, x = coordinates.evaluateReal(fc, coordinates.getNumberOfComponents())
-            if result == RESULT_OK:
-                # print(f"values: {x}")
-                # proj_x = _node_values_fcn(x)
-                # coordinates.assignReal(fc, proj_x)
-                parameter_data = {}
-                for d in range(derivatives_count):
-                    result, values = coordinates.getNodeParameters(fc, -1, node_derivatives[d], 1, components_count)
-                    if result == RESULT_OK:
-                        parameter_data[node_derivatives[d]] = values
-                        # proj_param = _node_parameters_fcn(values)
-                        # coordinates.setNodeParameters(fc, -1, node_derivatives[d], 1, proj_param)
+    if mesh.getSize() == 0:
+        return []
 
-                derivative = [parameter_data[Node.VALUE_LABEL_D_DS1][i] for i in range(components_count)]
-                # print("derivative:", derivative)
-                data.append((x, derivative))
-            node = node_iter.next()
+    el_iterator = mesh.createElementiterator()
 
-    return data
+    element = el_iterator.next()
+    element_data = []
+    while element.isValid():
+        eft = element.getElementfieldtemplate(coordinates, -1)
+        function_count = eft.getNumberOfFunctions()
+        status = [function_count == 4]
+        for f in range(1, function_count + 1):
+            term_count = eft.getFunctionNumberOfTerms(f)
+            status.append(term_count == 1)
+
+        if all(status):
+            values_1, derivatives_1 = _get_parameters_from_eft(element, eft, coordinates)
+            values_2, derivatives_2 = _get_parameters_from_eft(element, eft, coordinates, False)
+
+            element_data.append([(values_1, derivatives_1), (values_2, derivatives_2)])
+        element = el_iterator.next()
+
+    return element_data
 
 
-def _calculate_bezier_control_points(data):
+def _get_parameters_from_eft(element, eft, coordinates, first=True):
+    start_fn = 0 if first else 2
+    ln = eft.getTermLocalNodeIndex(start_fn + 1, 1)
+    node_1 = element.getNode(eft, ln)
+    version = eft.getTermNodeVersion(start_fn + 1, 1)
+    values = _get_node_data(node_1, coordinates, Node.VALUE_LABEL_VALUE, version)
+    version = eft.getTermNodeVersion(start_fn + 2, 1)
+    derivatives = _get_node_data(node_1, coordinates, Node.VALUE_LABEL_D_DS1, version)
+
+    return values, derivatives
+
+
+def _get_node_data(node, coordinate_field, node_parameter, version):
+    fm = coordinate_field.getFieldmodule()
+    fc = fm.createFieldcache()
+
+    components_count = coordinate_field.getNumberOfComponents()
+
+    if node.isValid():
+        fc.setNode(node)
+        result, values = coordinate_field.getNodeParameters(fc, -1, node_parameter, version, components_count)
+        if result == RESULT_OK:
+            return values
+
+    return None
+
+
+def _calculate_bezier_curve(pt_1, pt_2):
+    h0 = pt_1[0][:2]
+    v0 = pt_1[1][:2]
+    h1 = pt_2[0][:2]
+    v1 = pt_2[1][:2]
+
+    b0 = h0
+    b1 = sub(h0, div(v0, 3))
+    b2 = add(h1, div(v1, 3))
+    b3 = h1
+
+    return b0, b1, b2, b3
+
+
+def _calculate_bezier_control_points(point_data):
     bezier = []
 
-    for i in range(len(data)):
-        if i == len(data) - 1:
-            continue
-
-        h0 = data[i][0][:2]
-        v0 = data[i][1][:2]
-        h1 = data[i+1][0][:2]
-        v1 = data[i+1][1][:2]
-
-        b0 = h0
-        b1 = sub(h0, div(v0, 3))
-        b2 = add(h1, div(v1, 3))
-        b3 = h1
-
-        bezier.append((b0, b1, b2, b3))
+    for curve_pts in point_data:
+        bezier.append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
 
     return bezier
 
