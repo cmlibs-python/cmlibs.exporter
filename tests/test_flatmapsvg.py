@@ -1,3 +1,4 @@
+import json
 import os.path
 import unittest
 import xml.etree.ElementTree as ET
@@ -29,10 +30,19 @@ class Exporter(unittest.TestCase):
         exporter.export_from_scene(root_region.getScene())
         flatmap_svg_file = _resource_path("flatmap.svg")
         self.assertTrue(os.path.isfile(flatmap_svg_file))
+        properties_file = _resource_path("properties.json")
+        self.assertTrue(os.path.isfile(properties_file))
 
         tree = ET.parse(flatmap_svg_file)
         root = tree.getroot()
 
         self.assertEqual(58, len(root))
 
+        with open(properties_file) as f:
+            content = json.load(f)
+
+        self.assertIn("features", content)
+        self.assertEqual(13, len(content["features"]))
+
         os.remove(flatmap_svg_file)
+        os.remove(properties_file)

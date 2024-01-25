@@ -2,7 +2,9 @@
 Export an Argon document to source document(s) suitable for the generating
 flatmaps from.
 """
+import json
 import os
+import random
 
 from cmlibs.zinc.field import Field
 from cmlibs.zinc.node import Node
@@ -72,8 +74,23 @@ class ArgonSceneExporter(BaseExporter):
         markers = _calculate_markers(region, "coordinates")
         svg_string = _write_into_svg_format(bezier, markers)
 
+        features = {}
+        for i, marker in enumerate(markers):
+
+            feature = {
+                "name": marker[2],
+                "models": marker[3],
+                "type": "nerve",
+            }
+            features[marker[0]] = feature
+
+        properties = {"features": features}
+
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
+
+        with open(f'{os.path.join(self._output_target, "properties")}.json', 'w') as f:
+            json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
 
 
 def _calculate_markers(region, coordinate_field_name):
@@ -81,6 +98,7 @@ def _calculate_markers(region, coordinate_field_name):
     fm = region.getFieldmodule()
     coordinate_field = fm.findFieldByName('marker_data_coordinates').castFiniteElement()
     name_field = fm.findFieldByName('marker_data_name')
+    id_field = fm.findFieldByName('marker_data_id')
 
     markers_group = Field()
     for probable_group_name in probable_group_names:
@@ -99,12 +117,23 @@ def _calculate_markers(region, coordinate_field_name):
         marker = marker_iterator.next()
         fc = fm.createFieldcache()
 
+        i = 0
         while marker.isValid():
             fc.setNode(marker)
             result, values = coordinate_field.evaluateReal(fc, components_count)
-            name = name_field.evaluateString(fc)
-            marker_data.append((values[:2], name))
+            if name_field.isValid():
+                name = name_field.evaluateString(fc)
+            else:
+                name = f"Unnamed marker {i + 1}"
+
+            if id_field.isValid():
+                onto_id = id_field.evaluateString(fc)
+            else:
+                rand_num = random.randint(1, 99999)
+                onto_id = f"UBERON:99{rand_num:0=5}"
+            marker_data.append((f"marker_{marker.getIdentifier()}", values[:2], name, onto_id))
             marker = marker_iterator.next()
+            i += 1
 
     return marker_data
 
@@ -211,8 +240,8 @@ def _write_into_svg_format(bezier_path, markers):
 
     for marker in markers:
         title_count += 1
-        svg += f'  <circle cx="{marker[0][0]}" cy="{marker[0][1]}" r="3" fill="orange">\n'
-        svg += f'    <title id="title{title_count}">.id({marker[1]})</title>\n'
+        svg += f'  <circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill="orange">\n'
+        svg += f'    <title id="title{title_count}">.id({marker[0]})</title>\n'
         svg += '  </circle>\n'
 
     svg += '</svg>'
