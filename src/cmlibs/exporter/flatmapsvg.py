@@ -12,6 +12,7 @@ from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
 from cmlibs.maths.vectorops import sub, div, add
+from cmlibs.utils.zinc.field import get_group_list
 
 
 class ArgonSceneExporter(BaseExporter):
@@ -75,8 +76,14 @@ class ArgonSceneExporter(BaseExporter):
         svg_string = _write_into_svg_format(bezier, markers)
 
         features = {}
-        for i, marker in enumerate(markers):
+        for path_key in path_points:
+            if path_key.endswith('_name'):
+                features[path_key] = {
+                    "name": path_points[path_key],
+                    "type": "nerve",
+                }
 
+        for marker in markers:
             feature = {
                 "name": marker[2],
                 "models": marker[3],
@@ -149,10 +156,21 @@ def _analyze_elements(region, coordinate_field_name):
     if mesh.getSize() == 0:
         return []
 
+    group_list = get_group_list(fm)
+    group_index = 0
+    groups = {
+        "ungrouped": []
+    }
+    for group in group_list:
+        group_name = group.getName()
+        if group_name != "marker":
+            group_label = f"group_{group_index + 1}"
+            groups[group_label] = []
+            groups[f"{group_label}_name"] = group_name
+        group_index += 1
     el_iterator = mesh.createElementiterator()
 
     element = el_iterator.next()
-    element_data = []
     while element.isValid():
         eft = element.getElementfieldtemplate(coordinates, -1)
         function_count = eft.getNumberOfFunctions()
@@ -165,10 +183,23 @@ def _analyze_elements(region, coordinate_field_name):
             values_1, derivatives_1 = _get_parameters_from_eft(element, eft, coordinates)
             values_2, derivatives_2 = _get_parameters_from_eft(element, eft, coordinates, False)
 
-            element_data.append([(values_1, derivatives_1), (values_2, derivatives_2)])
+            group_index = 0
+            in_group = False
+            for group in group_list:
+                mesh_group = group.getMeshGroup(mesh)
+                if mesh_group.containsElement(element):
+                    group_label = f"group_{group_index + 1}"
+                    groups[group_label].append([(values_1, derivatives_1), (values_2, derivatives_2)])
+                    in_group = True
+
+                group_index += 1
+
+            if not in_group:
+                groups["ungrouped"].append([(values_1, derivatives_1), (values_2, derivatives_2)])
+
         element = el_iterator.next()
 
-    return element_data
+    return groups
 
 
 def _get_parameters_from_eft(element, eft, coordinates, first=True):
@@ -213,21 +244,38 @@ def _calculate_bezier_curve(pt_1, pt_2):
 
 
 def _calculate_bezier_control_points(point_data):
-    bezier = []
+    bezier = {}
 
-    for curve_pts in point_data:
-        bezier.append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
+    for point_group in point_data:
+        if point_data[point_group] and not point_group.endswith("_name"):
+            bezier[point_group] = []
+            for curve_pts in point_data[point_group]:
+                bezier[point_group].append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
 
     return bezier
 
 
-def _write_into_svg_format(bezier_path, markers):
-    title_count = 0
-    svg = '<svg width="1000" height="1000" xmlns="http://www.w3.org/2000/svg">\n'
+def _write_svg_bezier_path(bezier_path, indent='  '):
+    svg = ''
     for i in range(len(bezier_path)):
         b = bezier_path[i]
-        colour = 'blue' if i % 2 == 0 else 'red'
-        svg += f'  <path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{colour}" fill-opacity="0.0"/>\n'
+        colour = 'blue'  # if i % 2 == 0 else 'red'
+        svg += f'{indent}<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{colour}" fill-opacity="0.0"/>\n'
+
+    return svg
+
+
+def _write_into_svg_format(bezier_data, markers):
+    title_count = 0
+    svg = '<svg width="1000" height="1000" xmlns="http://www.w3.org/2000/svg">\n'
+    for group_name in bezier_data:
+        if group_name == "ungrouped":
+            svg += _write_svg_bezier_path(bezier_data[group_name])
+        else:
+            title_count += 1
+            svg += f'  <g>\n    <title id="title{title_count}">.id({group_name}_name)</title>\n'
+            svg += _write_svg_bezier_path(bezier_data[group_name], indent='    ')
+            svg += f'  </g>\n'
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]

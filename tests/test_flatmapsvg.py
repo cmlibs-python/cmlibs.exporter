@@ -36,13 +36,13 @@ class Exporter(unittest.TestCase):
         tree = ET.parse(flatmap_svg_file)
         root = tree.getroot()
 
-        self.assertEqual(58, len(root))
+        self.assertEqual(18, len(root))
 
         with open(properties_file) as f:
             content = json.load(f)
 
         self.assertIn("features", content)
-        self.assertEqual(13, len(content["features"]))
+        self.assertEqual(18, len(content["features"]))
 
         os.remove(flatmap_svg_file)
         os.remove(properties_file)
