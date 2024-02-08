@@ -6,6 +6,9 @@ import json
 import os
 import random
 
+from svgpathtools import svg2paths
+from xml.dom.minidom import parseString
+
 from cmlibs.zinc.field import Field
 from cmlibs.zinc.node import Node
 from cmlibs.zinc.result import RESULT_OK
@@ -74,6 +77,22 @@ class ArgonSceneExporter(BaseExporter):
         bezier = _calculate_bezier_control_points(path_points)
         markers = _calculate_markers(region, "coordinates")
         svg_string = _write_into_svg_format(bezier, markers)
+        paths, attributes = svg2paths(svg_string)
+        bbox = [999999999, -999999999, 999999999, -999999999]
+        for p in paths:
+            path_bbox = p.bbox()
+            bbox[0] = min(path_bbox[0], bbox[0])
+            bbox[1] = max(path_bbox[1], bbox[1])
+            bbox[2] = min(path_bbox[2], bbox[2])
+            bbox[3] = max(path_bbox[3], bbox[3])
+
+        view_margin = 10
+        view_box = (int(bbox[0] + 0.5) - view_margin,
+                    int(bbox[2] + 0.5) - view_margin,
+                    int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
+                    int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
+        svg_string = svg_string.replace('viewBox="WWW XXX YYY ZZZ"', f'viewBox="{view_box[0]} {view_box[1]} {view_box[2]} {view_box[3]}"')
+        svg_string = parseString(svg_string).toprettyxml()
 
         features = {}
         for path_key in path_points:
@@ -87,7 +106,6 @@ class ArgonSceneExporter(BaseExporter):
             feature = {
                 "name": marker[2],
                 "models": marker[3],
-                "type": "nerve",
             }
             features[marker[0]] = feature
 
@@ -96,7 +114,7 @@ class ArgonSceneExporter(BaseExporter):
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
 
-        with open(f'{os.path.join(self._output_target, "properties")}.json', 'w') as f:
+        with open(f'{os.path.join(self._output_target, f"{self._prefix}_properties")}.json', 'w') as f:
             json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
 
 
@@ -255,27 +273,27 @@ def _calculate_bezier_control_points(point_data):
     return bezier
 
 
-def _write_svg_bezier_path(bezier_path, indent='  '):
+def _write_svg_bezier_path(bezier_path, ungrouped=False):
     svg = ''
     for i in range(len(bezier_path)):
         b = bezier_path[i]
-        colour = 'blue'  # if i % 2 == 0 else 'red'
-        svg += f'{indent}<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{colour}" fill-opacity="0.0"/>\n'
+        stroke_attr = 'stroke="blue" ' if ungrouped else ''  # if i % 2 == 0 else 'red'
+        svg += f'<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" {stroke_attr} fill-opacity="0.0"/>'
 
     return svg
 
 
 def _write_into_svg_format(bezier_data, markers):
     title_count = 0
-    svg = '<svg width="1000" height="1000" xmlns="http://www.w3.org/2000/svg">\n'
+    svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
     for group_name in bezier_data:
         if group_name == "ungrouped":
-            svg += _write_svg_bezier_path(bezier_data[group_name])
+            svg += _write_svg_bezier_path(bezier_data[group_name], True)
         else:
             title_count += 1
-            svg += f'  <g>\n    <title id="title{title_count}">.id({group_name}_name)</title>\n'
-            svg += _write_svg_bezier_path(bezier_data[group_name], indent='    ')
-            svg += f'  </g>\n'
+            svg += f'<g><title id="title{title_count}">.id({group_name}_name)</title>'
+            svg += _write_svg_bezier_path(bezier_data[group_name])
+            svg += f'</g>'
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]
@@ -288,10 +306,12 @@ def _write_into_svg_format(bezier_data, markers):
 
     for marker in markers:
         title_count += 1
-        svg += f'  <circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill="orange">\n'
-        svg += f'    <title id="title{title_count}">.id({marker[0]})</title>\n'
-        svg += '  </circle>\n'
+        svg += f'<circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill-opacity="0.0">'
+        svg += f'<title id="title{title_count}">.id({marker[0]})</title>'
+        svg += '</circle>'
 
     svg += '</svg>'
+
+
 
     return svg

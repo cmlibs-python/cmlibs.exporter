@@ -31,7 +31,11 @@ readme.append('')
 
 software_licence = readfile("LICENSE")
 
-requires = ['cmlibs.argon >= 0.4.0', 'cmlibs.zinc']
+requires = [
+    'cmlibs.argon >= 0.4.0',
+    'cmlibs.zinc',
+    'svgpathtools_light @ https://github.com/hsorby/svgpathtools-light/releases/download/1.6.2rc1/svgpathtools_light-1.6.2rc1-py2.py3-none-any.whl',
+]
 
 setup(
     name='cmlibs.exporter',

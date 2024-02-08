@@ -21,16 +21,16 @@ class Exporter(unittest.TestCase):
         source_model = _resource_path("flattened_vagus.exf")
         output_target = _resource_path("")
 
-        exporter = flatmapsvg.ArgonSceneExporter(output_target=output_target, output_prefix="flatmap")
+        exporter = flatmapsvg.ArgonSceneExporter(output_target=output_target, output_prefix="vagus")
 
         c = Context('generate_flatmap_svg')
         root_region = c.getDefaultRegion()
         root_region.readFile(source_model)
 
         exporter.export_from_scene(root_region.getScene())
-        flatmap_svg_file = _resource_path("flatmap.svg")
+        flatmap_svg_file = _resource_path("vagus.svg")
         self.assertTrue(os.path.isfile(flatmap_svg_file))
-        properties_file = _resource_path("properties.json")
+        properties_file = _resource_path("vagus_properties.json")
         self.assertTrue(os.path.isfile(properties_file))
 
         tree = ET.parse(flatmap_svg_file)
