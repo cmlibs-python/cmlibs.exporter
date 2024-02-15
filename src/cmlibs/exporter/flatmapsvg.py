@@ -91,7 +91,9 @@ class ArgonSceneExporter(BaseExporter):
                     int(bbox[2] + 0.5) - view_margin,
                     int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
                     int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
+
         svg_string = svg_string.replace('viewBox="WWW XXX YYY ZZZ"', f'viewBox="{view_box[0]} {view_box[1]} {view_box[2]} {view_box[3]}"')
+
         svg_string = parseString(svg_string).toprettyxml()
 
         features = {}
@@ -106,6 +108,7 @@ class ArgonSceneExporter(BaseExporter):
             feature = {
                 "name": marker[2],
                 "models": marker[3],
+                "colour": "orange"
             }
             features[marker[0]] = feature
 
