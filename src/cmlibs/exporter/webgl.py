@@ -49,8 +49,10 @@ class ArgonSceneExporter(BaseExporter):
             self._document.setTessellationLevel("high")
             self.export_webgl()
 
-        self.tessellation_level = None
-        self._document.setTessellationLevel("low")
+            # For LOD the outside URL level is low
+            self.tessellation_level = None
+            self._document.setTessellationLevel("low")
+
         self.export_view()
         self.export_webgl()
 
