@@ -41,11 +41,11 @@ class ArgonSceneExporter(BaseExporter):
             self._output_target = output_target
 
         if self._multiple_levels:
-            self._tessellation_level = "medium"
+            self._tessellation_level = "high"
             self.setTessellation()
             self.export_webgl()
 
-            self._tessellation_level = "high"
+            self._tessellation_level = "medium"
             self.setTessellation()
             self.export_webgl()
 
@@ -82,35 +82,56 @@ class ArgonSceneExporter(BaseExporter):
         self._multiple_levels = LODs
 
     def setTessellation(self):
+        """
+        Set tessellation based on the current tessellation level.
+        """
         state = self._document.serialize()
-        dictOutput = json.loads(state)
-        _tessellation_name = "default"
-        if self._tessellation_level != "medium":
-            _tessellation_name = "tessellation_%s" % self._tessellation_level
-            new_tessellation = {
-                "CircleDivisions": 12,
-                "MinimumDivisions": [
-                    1
-                ],
-                "Name": _tessellation_name,
-                "RefinementFactors": [
-                    12 if self._tessellation_level == "high" else 1
-                ]
-            }
-            dictOutput["Tessellations"]["Tessellations"].append(new_tessellation)
-        for g in dictOutput["RootRegion"]["Scene"]["Graphics"]:
-            g["Tessellation"] = _tessellation_name
-        self._document.deserialize(json.dumps(dictOutput))
+        dict_output = json.loads(state)
+        tessellation_name = f"tessellation_{self._tessellation_level}"
+        new_tessellation = {
+            "CircleDivisions": 12,
+            "MinimumDivisions": [1],
+            "Name": tessellation_name,
+            "RefinementFactors": [
+                6 if self._tessellation_level == "high" else
+                3 if self._tessellation_level == "medium" else
+                1
+            ]
+        }
+        dict_output["Tessellations"]["Tessellations"].append(new_tessellation)
 
-    def _define_default_LOD_obj(self, index):
+        self._set_child_region_tessellation(dict_output["RootRegion"], tessellation_name)
+
+        if dict_output["RootRegion"]["Scene"]["Graphics"]:
+            for g in dict_output["RootRegion"]["Scene"]["Graphics"]:
+                g["Tessellation"] = tessellation_name
+
+        self._document.deserialize(json.dumps(dict_output))
+
+    def _set_child_region_tessellation(self, dict_output, tessellation_name):
+        """
+        Set tessellation recursively for child regions.
+        """
+        if "ChildRegions" not in dict_output:
+            return
+
+        for child_region in dict_output["ChildRegions"]:
+            if child_region["Scene"]["Graphics"]:
+                for g in child_region["Scene"]["Graphics"]:
+                    g["Tessellation"] = tessellation_name
+
+            self._set_child_region_tessellation(child_region, tessellation_name)
+
+    def _define_default_LOD_obj(self, url):
+        index = url.split("_")[-1]
         LOD_obj = {
             "Preload": False,
             "Levels": {
                 "medium": {
-                    "URL": f"{self._prefix}_medium_{index}.json"
+                    "URL": f"{self._prefix}_medium_{index}"
                 },
                 "close": {
-                    "URL": f"{self._prefix}_high_{index}.json"
+                    "URL": f"{self._prefix}_high_{index}"
                 }
             }
         }
@@ -160,6 +181,8 @@ class ArgonSceneExporter(BaseExporter):
         """
         sceneSR = scene.createStreaminformationScene()
         sceneSR.setIOFormat(sceneSR.IO_FORMAT_THREEJS)
+
+        # Set time-related parameters if specified
         if not (self._initialTime is None or self._finishTime is None):
             sceneSR.setNumberOfTimeSteps(self._numberOfTimeSteps)
             sceneSR.setInitialTime(self._initialTime)
@@ -172,6 +195,7 @@ class ArgonSceneExporter(BaseExporter):
         if scene_filter:
             sceneSR.setScenefilter(scene_filter)
 
+        # Check if any resources are required
         number = sceneSR.getNumberOfResourcesRequired()
         if number == 0:
             return
@@ -183,8 +207,10 @@ class ArgonSceneExporter(BaseExporter):
 
         scene.write(sceneSR)
 
+        # Calculate number of digits for resource filenames
         number_of_digits = math.floor(math.log10(number)) + 1
 
+        # Define resource filename based on prefix and index
         def _resource_filename(prefix, i_, tessellation_level=None):
             if self._multiple_levels and tessellation_level != "low":
                 return f'{prefix}_{tessellation_level}_{str(i_).zfill(number_of_digits)}.json'
@@ -205,6 +231,7 @@ class ArgonSceneExporter(BaseExporter):
             buffer = buffer.decode()
 
             if i == 0:
+                # Replace memory_resource_# with corresponding filenames
                 for j in range(number - 1):
                     """
                     IMPORTANT: the replace name here is relative to your html page, so adjust it
@@ -214,18 +241,20 @@ class ArgonSceneExporter(BaseExporter):
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
-                LOD_obj = self._define_default_LOD_obj(1) if self._document and self._multiple_levels else None
-
+                # Add default view object and settings object
                 view_obj = self._define_default_view_obj() if self._document else None
-
                 settings_obj = self._define_settings_obj()
 
                 obj = json.loads(buffer)
                 if obj is None:
                     raise ExportWebGLError('There is nothing to export')
 
-                if LOD_obj:
-                    obj[0]['LOD'] = LOD_obj
+                for o in obj:
+                    # Add Level of Detail (LOD) object if necessary
+                    LOD_obj = self._define_default_LOD_obj(
+                        o["URL"]) if self._document and self._multiple_levels else None
+                    if LOD_obj:
+                        o['LOD'] = LOD_obj
 
                 obj.append(view_obj)
                 if settings_obj is not None:
@@ -233,6 +262,7 @@ class ArgonSceneExporter(BaseExporter):
 
                 buffer = json.dumps(obj)
 
+            # Write buffer content to metadata file
             if i == 0:
                 current_file = self.metadata_file()
             else:
