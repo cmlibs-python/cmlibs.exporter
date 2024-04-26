@@ -23,6 +23,8 @@ class ArgonSceneExporter(BaseExporter):
         """
         super(ArgonSceneExporter, self).__init__("ArgonSceneExporterWebGL" if output_prefix is None else output_prefix)
         self._output_target = output_target
+        self._output_multiple_detail_levels = False
+        self._tessellation_level = None
 
     def export(self, output_target=None):
         """
@@ -38,8 +40,27 @@ class ArgonSceneExporter(BaseExporter):
         if output_target is not None:
             self._output_target = output_target
 
+        if self._output_multiple_detail_levels:
+            initial_state = self._document.serialize()
+
+            self._set_tessellation("high")
+            self.export_webgl()
+            self._document.deserialize(initial_state)
+
+            self._set_tessellation("medium")
+            self.export_webgl()
+            self._document.deserialize(initial_state)
+
+            # For LOD the default URL level is low.
+            self._set_tessellation("low")
+            self.export_webgl()
+
+            # Set the document back to its initial state.
+            self._document.deserialize(initial_state)
+        else:
+            self.export_webgl()
+
         self.export_view()
-        self.export_webgl()
 
     def export_view(self):
         """Export sceneviewer parameters to JSON format"""
@@ -50,8 +71,10 @@ class ArgonSceneExporter(BaseExporter):
             scenes = view.getScenes()
             if len(scenes) == 1:
                 scene_description = scenes[0]["Sceneviewer"].serialize()
-                viewData = {'farPlane': scene_description['FarClippingPlane'], 'nearPlane': scene_description['NearClippingPlane'],
-                            'eyePosition': scene_description['EyePosition'], 'targetPosition': scene_description['LookatPosition'],
+                viewData = {'farPlane': scene_description['FarClippingPlane'],
+                            'nearPlane': scene_description['NearClippingPlane'],
+                            'eyePosition': scene_description['EyePosition'],
+                            'targetPosition': scene_description['LookatPosition'],
                             'upVector': scene_description['UpVector'], 'viewAngle': scene_description['ViewAngle']}
 
                 view_file = self._form_full_filename(self._view_filename(name))
@@ -60,6 +83,40 @@ class ArgonSceneExporter(BaseExporter):
 
     def _view_filename(self, name):
         return f"{self._prefix}_{name}_view.json"
+
+    def setLoD(self, state):
+        self._output_multiple_detail_levels = state
+
+    def _set_tessellation(self, tessellation_level):
+        """
+        Set tessellation based on the current tessellation level.
+        """
+        self._tessellation_level = tessellation_level
+        state = self._document.serialize()
+        document_content = json.loads(state)
+
+        used_tessellations = _tessellations_in_use(document_content["RootRegion"])
+        for used_tessellation in used_tessellations:
+            matched_tessellations = [t for t in document_content["Tessellations"]["Tessellations"] if t["Name"] == used_tessellation]
+            if len(matched_tessellations) == 1:
+                _re_level_tessellation(tessellation_level, matched_tessellations[0])
+
+        self._document.deserialize(json.dumps(document_content))
+
+    def _define_default_LOD_obj(self, url):
+        index = url.split("_")[-1]
+        LOD_obj = {
+            "Preload": False,
+            "Levels": {
+                "medium": {
+                    "URL": f"{self._prefix}_medium_{index}"
+                },
+                "close": {
+                    "URL": f"{self._prefix}_high_{index}"
+                }
+            }
+        }
+        return LOD_obj
 
     def _define_default_view_obj(self):
         view_obj = {}
@@ -105,6 +162,8 @@ class ArgonSceneExporter(BaseExporter):
         """
         sceneSR = scene.createStreaminformationScene()
         sceneSR.setIOFormat(sceneSR.IO_FORMAT_THREEJS)
+
+        # Set time-related parameters if specified
         if not (self._initialTime is None or self._finishTime is None):
             sceneSR.setNumberOfTimeSteps(self._numberOfTimeSteps)
             sceneSR.setInitialTime(self._initialTime)
@@ -117,6 +176,7 @@ class ArgonSceneExporter(BaseExporter):
         if scene_filter:
             sceneSR.setScenefilter(scene_filter)
 
+        # Check if any resources are required
         number = sceneSR.getNumberOfResourcesRequired()
         if number == 0:
             return
@@ -128,9 +188,13 @@ class ArgonSceneExporter(BaseExporter):
 
         scene.write(sceneSR)
 
+        # Calculate number of digits for resource filenames
         number_of_digits = math.floor(math.log10(number)) + 1
 
-        def _resource_filename(prefix, i_):
+        # Define resource filename based on prefix and index
+        def _resource_filename(prefix, i_, tessellation_level=None):
+            if self._output_multiple_detail_levels and tessellation_level != "low":
+                return f'{prefix}_{tessellation_level}_{str(i_).zfill(number_of_digits)}.json'
             return f'{prefix}_{str(i_).zfill(number_of_digits)}.json'
 
         """Write out each resource into their own file"""
@@ -148,22 +212,30 @@ class ArgonSceneExporter(BaseExporter):
             buffer = buffer.decode()
 
             if i == 0:
+                # Replace memory_resource_# with corresponding filenames
                 for j in range(number - 1):
                     """
                     IMPORTANT: the replace name here is relative to your html page, so adjust it
                     accordingly.
                     """
-                    replaceName = f'"{_resource_filename(self._prefix, j + 1)}"'
+                    replaceName = f'"{_resource_filename(self._prefix, j + 1, self._tessellation_level)}"'
                     old_name = '"memory_resource_' + str(j + 2) + '"'
                     buffer = buffer.replace(old_name, replaceName, 1)
 
+                # Add default view object and settings object
                 view_obj = self._define_default_view_obj() if self._document else None
-
                 settings_obj = self._define_settings_obj()
 
                 obj = json.loads(buffer)
                 if obj is None:
                     raise ExportWebGLError('There is nothing to export')
+
+                for o in obj:
+                    # Add Level of Detail (LOD) object if necessary
+                    LOD_obj = self._define_default_LOD_obj(
+                        o["URL"]) if self._document and self._output_multiple_detail_levels else None
+                    if LOD_obj:
+                        o['LOD'] = LOD_obj
 
                 obj.append(view_obj)
                 if settings_obj is not None:
@@ -171,10 +243,12 @@ class ArgonSceneExporter(BaseExporter):
 
                 buffer = json.dumps(obj)
 
+            # Write buffer content to metadata file
             if i == 0:
                 current_file = self.metadata_file()
             else:
-                current_file = self._form_full_filename(_resource_filename(self._prefix, resource_count))
+                current_file = self._form_full_filename(
+                    _resource_filename(self._prefix, resource_count, self._tessellation_level))
 
             with open(current_file, 'w') as f:
                 f.write(buffer)
@@ -183,3 +257,30 @@ class ArgonSceneExporter(BaseExporter):
 
     def metadata_file(self):
         return self._form_full_filename(self._prefix + '_metadata.json')
+
+
+def _reduce_to_level(level, value):
+    divisor = 4
+    if level == "high":
+        divisor = 1
+    elif level == "medium":
+        divisor = 2
+
+    return max(math.floor(value / divisor), 1)
+
+
+def _re_level_tessellation(level, tessellation):
+    tessellation["CircleDivisions"] = _reduce_to_level(level, tessellation["CircleDivisions"])
+    tessellation["RefinementFactors"] = [_reduce_to_level(level, v) for v in tessellation["RefinementFactors"]]
+
+
+def _tessellations_in_use(region):
+    used_tessellations = []
+    if "Scene" in region:
+        for g in region["Scene"].get("Graphics", []):
+            used_tessellations.append(g["Tessellation"])
+
+    for child_region in region.get("ChildRegions", []):
+        used_tessellations.extend(_tessellations_in_use(child_region))
+
+    return used_tessellations
