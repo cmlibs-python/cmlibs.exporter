@@ -23,7 +23,7 @@ class ArgonSceneExporter(BaseExporter):
         """
         super(ArgonSceneExporter, self).__init__("ArgonSceneExporterWebGL" if output_prefix is None else output_prefix)
         self._output_target = output_target
-        self._multiple_levels = False
+        self._output_multiple_detail_levels = False
         self._tessellation_level = None
 
     def export(self, output_target=None):
@@ -40,21 +40,27 @@ class ArgonSceneExporter(BaseExporter):
         if output_target is not None:
             self._output_target = output_target
 
-        if self._multiple_levels:
-            self._tessellation_level = "high"
-            self.setTessellation()
+        if self._output_multiple_detail_levels:
+            initial_state = self._document.serialize()
+
+            self._set_tessellation("high")
+            self.export_webgl()
+            self._document.deserialize(initial_state)
+
+            self._set_tessellation("medium")
+            self.export_webgl()
+            self._document.deserialize(initial_state)
+
+            # For LOD the default URL level is low.
+            self._set_tessellation("low")
             self.export_webgl()
 
-            self._tessellation_level = "medium"
-            self.setTessellation()
+            # Set the document back to its initial state.
+            self._document.deserialize(initial_state)
+        else:
             self.export_webgl()
-
-            # For LOD the outside URL level is low
-            self._tessellation_level = "low"
-            self.setTessellation()
 
         self.export_view()
-        self.export_webgl()
 
     def export_view(self):
         """Export sceneviewer parameters to JSON format"""
@@ -78,49 +84,24 @@ class ArgonSceneExporter(BaseExporter):
     def _view_filename(self, name):
         return f"{self._prefix}_{name}_view.json"
 
-    def setLODs(self, LODs):
-        self._multiple_levels = LODs
+    def setLoD(self, state):
+        self._output_multiple_detail_levels = state
 
-    def setTessellation(self):
+    def _set_tessellation(self, tessellation_level):
         """
         Set tessellation based on the current tessellation level.
         """
+        self._tessellation_level = tessellation_level
         state = self._document.serialize()
-        dict_output = json.loads(state)
-        tessellation_name = f"tessellation_{self._tessellation_level}"
-        new_tessellation = {
-            "CircleDivisions": 12,
-            "MinimumDivisions": [1],
-            "Name": tessellation_name,
-            "RefinementFactors": [
-                6 if self._tessellation_level == "high" else
-                3 if self._tessellation_level == "medium" else
-                1
-            ]
-        }
-        dict_output["Tessellations"]["Tessellations"].append(new_tessellation)
+        document_content = json.loads(state)
 
-        self._set_child_region_tessellation(dict_output["RootRegion"], tessellation_name)
+        used_tessellations = _tessellations_in_use(document_content["RootRegion"])
+        for used_tessellation in used_tessellations:
+            matched_tessellations = [t for t in document_content["Tessellations"]["Tessellations"] if t["Name"] == used_tessellation]
+            if len(matched_tessellations) == 1:
+                _re_level_tessellation(tessellation_level, matched_tessellations[0])
 
-        if dict_output["RootRegion"]["Scene"]["Graphics"]:
-            for g in dict_output["RootRegion"]["Scene"]["Graphics"]:
-                g["Tessellation"] = tessellation_name
-
-        self._document.deserialize(json.dumps(dict_output))
-
-    def _set_child_region_tessellation(self, dict_output, tessellation_name):
-        """
-        Set tessellation recursively for child regions.
-        """
-        if "ChildRegions" not in dict_output:
-            return
-
-        for child_region in dict_output["ChildRegions"]:
-            if child_region["Scene"]["Graphics"]:
-                for g in child_region["Scene"]["Graphics"]:
-                    g["Tessellation"] = tessellation_name
-
-            self._set_child_region_tessellation(child_region, tessellation_name)
+        self._document.deserialize(json.dumps(document_content))
 
     def _define_default_LOD_obj(self, url):
         index = url.split("_")[-1]
@@ -212,7 +193,7 @@ class ArgonSceneExporter(BaseExporter):
 
         # Define resource filename based on prefix and index
         def _resource_filename(prefix, i_, tessellation_level=None):
-            if self._multiple_levels and tessellation_level != "low":
+            if self._output_multiple_detail_levels and tessellation_level != "low":
                 return f'{prefix}_{tessellation_level}_{str(i_).zfill(number_of_digits)}.json'
             return f'{prefix}_{str(i_).zfill(number_of_digits)}.json'
 
@@ -252,7 +233,7 @@ class ArgonSceneExporter(BaseExporter):
                 for o in obj:
                     # Add Level of Detail (LOD) object if necessary
                     LOD_obj = self._define_default_LOD_obj(
-                        o["URL"]) if self._document and self._multiple_levels else None
+                        o["URL"]) if self._document and self._output_multiple_detail_levels else None
                     if LOD_obj:
                         o['LOD'] = LOD_obj
 
@@ -276,3 +257,30 @@ class ArgonSceneExporter(BaseExporter):
 
     def metadata_file(self):
         return self._form_full_filename(self._prefix + '_metadata.json')
+
+
+def _reduce_to_level(level, value):
+    divisor = 4
+    if level == "high":
+        divisor = 1
+    elif level == "medium":
+        divisor = 2
+
+    return max(math.floor(value / divisor), 1)
+
+
+def _re_level_tessellation(level, tessellation):
+    tessellation["CircleDivisions"] = _reduce_to_level(level, tessellation["CircleDivisions"])
+    tessellation["RefinementFactors"] = [_reduce_to_level(level, v) for v in tessellation["RefinementFactors"]]
+
+
+def _tessellations_in_use(region):
+    used_tessellations = []
+    if "Scene" in region:
+        for g in region["Scene"].get("Graphics", []):
+            used_tessellations.append(g["Tessellation"])
+
+    for child_region in region.get("ChildRegions", []):
+        used_tessellations.extend(_tessellations_in_use(child_region))
+
+    return used_tessellations
