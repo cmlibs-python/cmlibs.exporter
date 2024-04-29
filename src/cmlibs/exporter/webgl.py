@@ -275,12 +275,13 @@ def _re_level_tessellation(level, tessellation):
 
 
 def _tessellations_in_use(region):
-    used_tessellations = []
+    used_tessellations = set()
     if "Scene" in region:
-        for g in region["Scene"].get("Graphics", []):
-            used_tessellations.append(g["Tessellation"])
+        if region["Scene"].get("Graphics", []):
+            for g in region["Scene"]["Graphics"]:
+                used_tessellations.add(g["Tessellation"])
 
     for child_region in region.get("ChildRegions", []):
-        used_tessellations.extend(_tessellations_in_use(child_region))
+        used_tessellations.update(_tessellations_in_use(child_region))
 
     return used_tessellations
