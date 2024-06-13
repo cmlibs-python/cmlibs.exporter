@@ -257,8 +257,8 @@ def _calculate_bezier_curve(pt_1, pt_2):
     v1 = pt_2[1][:2]
 
     b0 = h0
-    b1 = sub(h0, div(v0, 3))
-    b2 = add(h1, div(v1, 3))
+    b1 = add(h0, div(v0, 3))
+    b2 = sub(h1, div(v1, 3))
     b3 = h1
 
     return b0, b1, b2, b3
@@ -309,12 +309,13 @@ def _write_into_svg_format(bezier_data, markers):
 
     for marker in markers:
         title_count += 1
-        svg += f'<circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill-opacity="0.0">'
-        svg += f'<title id="title{title_count}">.id({marker[0]})</title>'
-        svg += '</circle>'
+        try:
+            svg += f'<circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill-opacity="0.0">'
+            svg += f'<title id="title{title_count}">.id({marker[0]})</title>'
+            svg += '</circle>'
+        except IndexError:
+            print("Invalid marker for export:", marker)
 
     svg += '</svg>'
-
-
 
     return svg
