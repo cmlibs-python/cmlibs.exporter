@@ -10,12 +10,12 @@ from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
 
 from cmlibs.zinc.field import Field
-from cmlibs.zinc.node import Node
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
 from cmlibs.maths.vectorops import sub, div, add
 from cmlibs.utils.zinc.field import get_group_list
+from cmlibs.utils.zinc.general import ChangeManager
 
 
 class ArgonSceneExporter(BaseExporter):
@@ -179,73 +179,64 @@ def _analyze_elements(region, coordinate_field_name):
 
     group_list = get_group_list(fm)
     group_index = 0
-    groups = {
+    grouped_path_points = {
         "ungrouped": []
     }
     for group in group_list:
         group_name = group.getName()
         if group_name != "marker":
             group_label = f"group_{group_index + 1}"
-            groups[group_label] = []
-            groups[f"{group_label}_name"] = group_name
+            grouped_path_points[group_label] = []
+            grouped_path_points[f"{group_label}_name"] = group_name
         group_index += 1
     el_iterator = mesh.createElementiterator()
 
-    element = el_iterator.next()
-    while element.isValid():
-        eft = element.getElementfieldtemplate(coordinates, -1)
-        function_count = eft.getNumberOfFunctions()
-        status = [function_count == 4]
-        for f in range(1, function_count + 1):
-            term_count = eft.getFunctionNumberOfTerms(f)
-            status.append(term_count == 1)
-
-        if all(status):
-            values_1, derivatives_1 = _get_parameters_from_eft(element, eft, coordinates)
-            values_2, derivatives_2 = _get_parameters_from_eft(element, eft, coordinates, False)
-
-            group_index = 0
-            in_group = False
-            for group in group_list:
-                mesh_group = group.getMeshGroup(mesh)
-                if mesh_group.containsElement(element):
-                    group_label = f"group_{group_index + 1}"
-                    groups[group_label].append([(values_1, derivatives_1), (values_2, derivatives_2)])
-                    in_group = True
-
-                group_index += 1
-
-            if not in_group:
-                groups["ungrouped"].append([(values_1, derivatives_1), (values_2, derivatives_2)])
-
+    with ChangeManager(fm):
+        xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
         element = el_iterator.next()
+        while element.isValid():
+            values_1 = _evaluate_field_data(element, 0, coordinates)
+            values_2 = _evaluate_field_data(element, 1, coordinates)
+            derivatives_1 = _evaluate_field_data(element, 0, xi_1_derivative)
+            derivatives_2 = _evaluate_field_data(element, 1, xi_1_derivative)
 
-    return groups
+            line_path_points = None
+            if values_1 and values_2 and derivatives_1 and derivatives_2:
+                line_path_points = [(values_1, derivatives_1), (values_2, derivatives_2)]
+
+            if line_path_points is not None:
+                group_index = 0
+                in_group = False
+                for group in group_list:
+                    mesh_group = group.getMeshGroup(mesh)
+                    if mesh_group.containsElement(element):
+                        group_label = f"group_{group_index + 1}"
+                        grouped_path_points[group_label].append(line_path_points)
+                        in_group = True
+
+                    group_index += 1
+
+                if not in_group:
+                    grouped_path_points["ungrouped"].append(line_path_points)
+
+            element = el_iterator.next()
+
+        del xi_1_derivative
+
+    return grouped_path_points
 
 
-def _get_parameters_from_eft(element, eft, coordinates, first=True):
-    start_fn = 0 if first else 2
-    ln = eft.getTermLocalNodeIndex(start_fn + 1, 1)
-    node_1 = element.getNode(eft, ln)
-    version = eft.getTermNodeVersion(start_fn + 1, 1)
-    values = _get_node_data(node_1, coordinates, Node.VALUE_LABEL_VALUE, version)
-    version = eft.getTermNodeVersion(start_fn + 2, 1)
-    derivatives = _get_node_data(node_1, coordinates, Node.VALUE_LABEL_D_DS1, version)
-
-    return values, derivatives
-
-
-def _get_node_data(node, coordinate_field, node_parameter, version):
-    fm = coordinate_field.getFieldmodule()
+def _evaluate_field_data(element, xi, data_field):
+    mesh = element.getMesh()
+    fm = mesh.getFieldmodule()
     fc = fm.createFieldcache()
 
-    components_count = coordinate_field.getNumberOfComponents()
+    components_count = data_field.getNumberOfComponents()
 
-    if node.isValid():
-        fc.setNode(node)
-        result, values = coordinate_field.getNodeParameters(fc, -1, node_parameter, version, components_count)
-        if result == RESULT_OK:
-            return values
+    fc.setMeshLocation(element, xi)
+    result, values = data_field.evaluateReal(fc, components_count)
+    if result == RESULT_OK:
+        return values
 
     return None
 
