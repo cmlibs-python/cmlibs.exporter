@@ -9,9 +9,7 @@ import random
 from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
 
-from cmlibs.zinc.element import Elementbasis
 from cmlibs.zinc.field import Field
-from cmlibs.zinc.node import Node
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
