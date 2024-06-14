@@ -17,6 +17,7 @@ from cmlibs.zinc.result import RESULT_OK
 from cmlibs.exporter.base import BaseExporter
 from cmlibs.maths.vectorops import sub, div, add
 from cmlibs.utils.zinc.field import get_group_list
+from cmlibs.utils.zinc.general import ChangeManager
 
 
 class ArgonSceneExporter(BaseExporter):
@@ -192,95 +193,52 @@ def _analyze_elements(region, coordinate_field_name):
         group_index += 1
     el_iterator = mesh.createElementiterator()
 
-    element = el_iterator.next()
-    while element.isValid():
-        # print("Element:", element.getIdentifier())
-        line_path_points = None
-        eft = element.getElementfieldtemplate(coordinates, -1)
-        el_basis = eft.getElementbasis()
-        basis_dimension = el_basis.getDimension()
-        if basis_dimension == 1 and el_basis.getFunctionType(1) == Elementbasis.FUNCTION_TYPE_CUBIC_HERMITE:
-            function_count = eft.getNumberOfFunctions()
-            local_node_count = eft.getNumberOfLocalNodes()
-            scale_factors_count = eft.getNumberOfLocalScaleFactors()
-            term_counts = []
-            for f in range(1, function_count + 1):
-                term_counts.append(eft.getFunctionNumberOfTerms(f))
-
-            # print("Function count:", function_count)
-            # print("Local node count:", local_node_count)
-            # print("Element scale factor count:", scale_factors_count)
-            # print("Term counts:", term_counts)
-
-            if function_count == 4 and local_node_count == 2 and scale_factors_count == 0 and term_counts == [1, 1, 1, 1]:
-                line_path_points = _calculate_line_path_points_4_2_0_1_1_1_1(element, eft, coordinates)
-            elif function_count == 4 and local_node_count == 4 and scale_factors_count == 4 and term_counts == [4, 1, 1, 1]:
-                print("Need to learn how to deal with this guy.")
-                print(f"No functionality to calculate line path points for element field template with properties:")
-                print(f"  - #functions: {function_count}\n  - #local nodes: {local_node_count}\n  - #scale factors: {scale_factors_count}\n  - terms: {term_counts}")
-                for f in range(1, function_count + 1):
-                        term_count = eft.getFunctionNumberOfTerms(f)
-                        for t in range(1, term_count + 1):
-                            print(f"EFT: {f} - {t}")
-                            print(eft.getTermLocalNodeIndex(f, t))
-                            print(eft.getTermNodeVersion(f, t))
-                            print(eft.getTermNodeValueLabel(f, t))
-            else:
-                print(f"No functionality to calculate line path points for element field template with properties:")
-                print(f"  - #functions: {function_count}\n  - #local nodes: {local_node_count}\n  - #scale factors: {scale_factors_count}\n  - terms: {term_counts}")
-        else:
-            print(f"No functionality to calculate line path points for element field template with basis:")
-            print(f"  - Dimension: {basis_dimension}")
-            for i in range(1, basis_dimension + 1):
-                print(f"    - Basis type: {el_basis.getFunctionType(i)}")
-
-        if line_path_points is not None:
-            group_index = 0
-            in_group = False
-            for group in group_list:
-                mesh_group = group.getMeshGroup(mesh)
-                if mesh_group.containsElement(element):
-                    group_label = f"group_{group_index + 1}"
-                    grouped_path_points[group_label].append(line_path_points)
-                    in_group = True
-
-                group_index += 1
-
-            if not in_group:
-                grouped_path_points["ungrouped"].append(line_path_points)
-
+    with ChangeManager(fm):
+        xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
         element = el_iterator.next()
+        while element.isValid():
+            values_1 = _evaluate_field_data(element, 0, coordinates)
+            values_2 = _evaluate_field_data(element, 1, coordinates)
+            derivatives_1 = _evaluate_field_data(element, 0, xi_1_derivative)
+            derivatives_2 = _evaluate_field_data(element, 1, xi_1_derivative)
+
+            line_path_points = None
+            if values_1 and values_2 and derivatives_1 and derivatives_2:
+                line_path_points = [(values_1, derivatives_1), (values_2, derivatives_2)]
+
+            if line_path_points is not None:
+                group_index = 0
+                in_group = False
+                for group in group_list:
+                    mesh_group = group.getMeshGroup(mesh)
+                    if mesh_group.containsElement(element):
+                        group_label = f"group_{group_index + 1}"
+                        grouped_path_points[group_label].append(line_path_points)
+                        in_group = True
+
+                    group_index += 1
+
+                if not in_group:
+                    grouped_path_points["ungrouped"].append(line_path_points)
+
+            element = el_iterator.next()
+
+        del xi_1_derivative
 
     return grouped_path_points
 
 
-def _calculate_line_path_points_4_2_0_1_1_1_1(element, eft, coordinates):
-    values = []
-    for fn in range(1, 5):
-        values.append(_get_parameters_using_eft(element, eft, fn, 1, coordinates))
-
-    return [(values[0], values[1]), (values[2], values[3])]
-
-
-def _get_parameters_using_eft(element, eft, fn, term, coordinates):
-    ln = eft.getTermLocalNodeIndex(fn, term)
-    node = element.getNode(eft, ln)
-    version = eft.getTermNodeVersion(fn, term)
-    value_label = eft.getTermNodeValueLabel(fn, term)
-    return _get_node_data(node, coordinates, value_label, version)
-
-
-def _get_node_data(node, node_field, node_parameter, version):
-    fm = node_field.getFieldmodule()
+def _evaluate_field_data(element, xi, data_field):
+    mesh = element.getMesh()
+    fm = mesh.getFieldmodule()
     fc = fm.createFieldcache()
 
-    components_count = node_field.getNumberOfComponents()
+    components_count = data_field.getNumberOfComponents()
 
-    if node.isValid():
-        fc.setNode(node)
-        result, values = node_field.getNodeParameters(fc, -1, node_parameter, version, components_count)
-        if result == RESULT_OK:
-            return values
+    fc.setMeshLocation(element, xi)
+    result, values = data_field.evaluateReal(fc, components_count)
+    if result == RESULT_OK:
+        return values
 
     return None
 
