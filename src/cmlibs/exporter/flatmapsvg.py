@@ -101,7 +101,7 @@ class ArgonSceneExporter(BaseExporter):
             if path_key.endswith('_name'):
                 features[path_key] = {
                     "name": path_points[path_key],
-                    "type": "nerve",
+                    "type": "centreline",
                 }
 
         for marker in markers:
@@ -117,7 +117,7 @@ class ArgonSceneExporter(BaseExporter):
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
 
-        with open(f'{os.path.join(self._output_target, f"{self._prefix}_properties")}.json', 'w') as f:
+        with open(os.path.join(self._output_target, 'properties.json', 'w')) as f:
             json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
 
 
