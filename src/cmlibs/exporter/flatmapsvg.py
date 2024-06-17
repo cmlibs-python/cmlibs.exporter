@@ -97,12 +97,22 @@ class ArgonSceneExporter(BaseExporter):
         svg_string = parseString(svg_string).toprettyxml()
 
         features = {}
+        centreline_names = []
         for path_key in path_points:
             if path_key.endswith('_name'):
+                centreline_names.append(path_key)
                 features[path_key] = {
                     "name": path_points[path_key],
-                    "type": "nerve",
+                    "type": "centreline",
                 }
+
+        networks = []
+        centrelines = []
+        for centreline_name in centreline_names:
+            centrelines.append({"id": centreline_name})
+
+        # May at some point be able to describe the connectivity between centrelines.
+        # networks.append({"centrelines": centrelines})
 
         for marker in markers:
             feature = {
@@ -112,12 +122,12 @@ class ArgonSceneExporter(BaseExporter):
             }
             features[marker[0]] = feature
 
-        properties = {"features": features}
+        properties = {"features": features, "networks": networks}
 
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
 
-        with open(f'{os.path.join(self._output_target, f"{self._prefix}_properties")}.json', 'w') as f:
+        with open(os.path.join(self._output_target, 'properties.json'), 'w') as f:
             json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
 
 
@@ -285,7 +295,7 @@ def _write_into_svg_format(bezier_data, markers):
             svg += _write_svg_bezier_path(bezier_data[group_name], True)
         else:
             title_count += 1
-            svg += f'<g><title id="title{title_count}">.id({group_name}_name)</title>'
+            svg += f'<g><title id="title{title_count}">.centreline id({group_name}_name)</title>'
             svg += _write_svg_bezier_path(bezier_data[group_name])
             svg += f'</g>'
 
