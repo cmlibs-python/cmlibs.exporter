@@ -102,7 +102,7 @@ class ArgonSceneExporter(BaseExporter):
             if path_key.endswith('_name'):
                 centreline_names.append(path_key)
                 features[path_key] = {
-                    "name": path_points[path_key],
+                    "label": path_points[path_key],
                     "type": "centreline",
                 }
 
@@ -281,22 +281,107 @@ def _write_svg_bezier_path(bezier_path, ungrouped=False):
     svg = ''
     for i in range(len(bezier_path)):
         b = bezier_path[i]
-        stroke_attr = 'stroke="blue" ' if ungrouped else ''  # if i % 2 == 0 else 'red'
-        svg += f'<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" {stroke_attr} fill-opacity="0.0"/>'
+        stroke = "blue" if ungrouped else "white"
+        svg += f'<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{stroke}"/>'
+
+    return svg
+
+
+class UnionFind:
+    def __init__(self, v):
+        self.parent = [-1 for _ in range(v)]
+
+    def find(self, i):
+        if self.parent[i] == -1:
+            return i
+        self.parent[i] = self.find(self.parent[i])  # Path compression
+        return self.parent[i]
+
+    def union(self, i, j):
+        root_i = self.find(i)
+        root_j = self.find(j)
+        if root_i != root_j:
+            self.parent[root_i] = root_j
+            return root_j
+        return root_i
+
+    def __repr__(self):
+        return f"{self.parent}"
+
+
+def _create_key(pt):
+    tolerance = 1e12
+    return int(pt[0] * tolerance), int(pt[1] * tolerance)
+
+
+def _connected_segments(curve):
+    begin_hash = {}
+    for index, c in enumerate(curve):
+        key = _create_key(c[0])
+        if key in begin_hash:
+            print("problem repeated key!", index, c)
+        begin_hash[key] = index
+
+    curve_size = len(curve)
+    uf = UnionFind(len(curve))
+    for index, c in enumerate(curve):
+        y_cur = _create_key(c[3])
+        if y_cur in begin_hash:
+            uf.union(begin_hash[y_cur], index)
+
+    sets = {}
+    for i in range(curve_size):
+        root = uf.find(i)
+        if root not in sets:
+            sets[root] = []
+
+        sets[root].append(i)
+
+    segments = []
+    for s in sets:
+        seg = [curve[s]]
+        key = _create_key(curve[s][3])
+        while key in begin_hash:
+            s = begin_hash[key]
+            seg.append(curve[s])
+            old_key = key
+            key = _create_key(curve[s][3])
+            if old_key == key:
+                print("Breaking out of loop.")
+                break
+            # print(key)
+
+        segments.append(seg)
+
+    return segments
+
+
+def _write_connected_svg_bezier_path(bezier_path, ungrouped=False):
+    svg = ''
+    stroke = "blue" if ungrouped else "white"
+
+    for i in range(len(bezier_path)):
+        b = bezier_path[i]
+        if i == 0:
+            svg += f'<path d="M {b[0][0]} {b[0][1]}'
+
+        svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
+    svg += f'" stroke="{stroke}" fill="transparent"/>'
 
     return svg
 
 
 def _write_into_svg_format(bezier_data, markers):
-    title_count = 0
     svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
     for group_name in bezier_data:
+        connected_paths = _connected_segments(bezier_data[group_name])
         if group_name == "ungrouped":
-            svg += _write_svg_bezier_path(bezier_data[group_name], True)
+            for connected_bezier_data in connected_paths:
+                svg += _write_connected_svg_bezier_path(connected_bezier_data, ungrouped=True)
         else:
-            title_count += 1
-            svg += f'<g><title id="title{title_count}">.centreline id({group_name}_name)</title>'
-            svg += _write_svg_bezier_path(bezier_data[group_name])
+            svg += f'<g><title>.centreline id({group_name}_name)</title>'
+            for connected_bezier_data in connected_paths:
+                svg += _write_connected_svg_bezier_path(connected_bezier_data)
             svg += f'</g>'
 
     # for i in range(len(bezier_path)):
@@ -309,10 +394,9 @@ def _write_into_svg_format(bezier_data, markers):
     #     svg += f'<path d="M {b[3][0]} {b[3][1]} L {b[2][0]} {b[2][1]}" stroke="orange"/>\n'
 
     for marker in markers:
-        title_count += 1
         try:
             svg += f'<circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill-opacity="0.0">'
-            svg += f'<title id="title{title_count}">.id({marker[0]})</title>'
+            svg += f'<title>.id({marker[0]})</title>'
             svg += '</circle>'
         except IndexError:
             print("Invalid marker for export:", marker)
