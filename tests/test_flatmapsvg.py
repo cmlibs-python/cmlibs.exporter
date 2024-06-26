@@ -30,7 +30,7 @@ class Exporter(unittest.TestCase):
         exporter.export_from_scene(root_region.getScene())
         flatmap_svg_file = _resource_path("vagus.svg")
         self.assertTrue(os.path.isfile(flatmap_svg_file))
-        properties_file = _resource_path("vagus_properties.json")
+        properties_file = _resource_path("properties.json")
         self.assertTrue(os.path.isfile(properties_file))
 
         tree = ET.parse(flatmap_svg_file)
