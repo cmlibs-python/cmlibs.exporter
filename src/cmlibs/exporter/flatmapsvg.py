@@ -392,7 +392,7 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
 
             svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
     svg += f'" stroke="{stroke}" fill="none"'
-    svg += '/>' if group_name is None else f'><title>id({group_name}_name)</title></path>'
+    svg += '/>' if group_name is None else f'><title>.id({group_name}_name)</title></path>'
 
     return svg
 
