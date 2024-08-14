@@ -4,8 +4,10 @@ flatmaps from.
 """
 import csv
 import json
+import math
 import os
 import random
+from decimal import Decimal
 
 from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
@@ -347,15 +349,30 @@ class UnionFind:
         return f"{self.parent}"
 
 
-def _create_key(pt):
-    tolerance = 1e12
+def _count_significant_figs(num_str):
+    return len(Decimal(num_str).normalize().as_tuple().digits)
+
+
+def _create_key(pt, tolerance=1e8):
     return int(pt[0] * tolerance), int(pt[1] * tolerance)
 
 
 def _connected_segments(curve):
+    # Determine a tolerance for the curve to use in defining keys
+    min_sig_figs = math.inf
+    max_sig_digit = -math.inf
+    for c in curve:
+        for i in [0, 3]:
+            for j in [0, 1]:
+                min_sig_figs = min([min_sig_figs, _count_significant_figs(f"{c[i][j]}")])
+                max_sig_digit = max([max_sig_digit, float(f'{float(f"{c[i][j]:.1g}"):g}')])
+
+    tolerance_power = min_sig_figs - len(f"{math.fabs(max_sig_digit)}") - 2
+    key_tolerance = 10 ** (tolerance_power if tolerance_power > 0 else 8)
+
     begin_hash = {}
     for index, c in enumerate(curve):
-        key = _create_key(c[0])
+        key = _create_key(c[0], key_tolerance)
         if key in begin_hash:
             print("problem repeated key!", index, c)
         begin_hash[key] = index
@@ -363,7 +380,7 @@ def _connected_segments(curve):
     curve_size = len(curve)
     uf = UnionFind(len(curve))
     for index, c in enumerate(curve):
-        y_cur = _create_key(c[3])
+        y_cur = _create_key(c[3], key_tolerance)
         if y_cur in begin_hash:
             uf.union(begin_hash[y_cur], index)
 
@@ -378,12 +395,12 @@ def _connected_segments(curve):
     segments = []
     for s in sets:
         seg = [curve[s]]
-        key = _create_key(curve[s][3])
+        key = _create_key(curve[s][3], key_tolerance)
         while key in begin_hash:
             s = begin_hash[key]
             seg.append(curve[s])
             old_key = key
-            key = _create_key(curve[s][3])
+            key = _create_key(curve[s][3], key_tolerance)
             if old_key == key:
                 print("Breaking out of loop.")
                 break
@@ -416,6 +433,12 @@ def _write_into_svg_format(bezier_data, markers):
     for group_name in bezier_data:
         connected_paths = _connected_segments(bezier_data[group_name])
 
+        if len(connected_paths) > 1:
+            print("---------")
+            print("Two of the following points should have been detected as the same point.")
+            for connected_path in connected_paths:
+                print(connected_path[0][0])
+                print(connected_path[-1][-1])
         svg += _write_connected_svg_bezier_path(connected_paths, group_name=group_name if group_name != "ungrouped" else None)
 
     # for i in range(len(bezier_path)):
