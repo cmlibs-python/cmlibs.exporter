@@ -2,6 +2,7 @@
 Export an Argon document to source document(s) suitable for the generating
 flatmaps from.
 """
+import csv
 import json
 import os
 import random
@@ -18,6 +19,20 @@ from cmlibs.utils.zinc.field import get_group_list
 from cmlibs.utils.zinc.general import ChangeManager
 
 
+SVG_COLOURS = [
+    "aliceblue", "aquamarine", "azure", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
+    "cadetblue", "chartreuse", "chocolate", "coral", "cornflowerblue", "cornsilk", "crimson", "cyan",
+    "darkblue", "darkcyan", "darkgoldenrod", "darkgray", "darkgreen", "darkgrey", "darkkhaki", "darkmagenta",
+    "darkolivegreen", "darkorange", "darkorchid", "darkred", "darksalmon", "darkseagreen", "darkslateblue",
+    "darkslategray", "darkslategrey", "darkturquoise", "darkviolet", "deeppink", "deepskyblue", "dimgray",
+    "dimgrey", "dodgerblue", "firebrick", "floralwhite", "forestgreen", "fuchsia", "gainsboroghost",
+    "whitegold", "goldenrod", "gray", "green", "greenyellow", "grey", "honeydew", "hotpink", "indianred",
+    "indigo", "ivorykhakilavender", "lavenderblush", "lawngreen", "lemonchiffon", "lightblue", "lightcoral",
+    "lightcyan", "lightgolden", "rodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink",
+    "lightsalmon", "lightseagreen",
+]
+
+
 class ArgonSceneExporter(BaseExporter):
     """
     Export a visualisation described by an Argon document to webGL.
@@ -30,6 +45,7 @@ class ArgonSceneExporter(BaseExporter):
         """
         super(ArgonSceneExporter, self).__init__("ArgonSceneExporterWavefrontSVG" if output_prefix is None else output_prefix)
         self._output_target = output_target
+        self._annotations_csv_file = None
 
     def export(self, output_target=None):
         """
@@ -96,6 +112,17 @@ class ArgonSceneExporter(BaseExporter):
 
         svg_string = parseString(svg_string).toprettyxml()
 
+        reversed_map = None
+        if self._annotations_csv_file is not None:
+            with open(self._annotations_csv_file) as fh:
+                result = csv.reader(fh)
+
+                is_annotation_csv_file = _is_annotation_csv_file(result)
+
+                if is_annotation_csv_file:
+                    fh.seek(0)
+                    reversed_map = _reverse_map_annotations(result)
+
         features = {}
         centreline_names = []
         for path_key in path_points:
@@ -105,6 +132,8 @@ class ArgonSceneExporter(BaseExporter):
                     "label": path_points[path_key],
                     "type": "centreline",
                 }
+                if reversed_map is not None and _label_has_annotations(path_points[path_key], reversed_map):
+                    features[path_key]["models"] = reversed_map[path_points[path_key]]
 
         networks = []
         centrelines = []
@@ -129,6 +158,9 @@ class ArgonSceneExporter(BaseExporter):
 
         with open(os.path.join(self._output_target, 'properties.json'), 'w') as f:
             json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
+
+    def set_annotations_csv_file(self, filename):
+        self._annotations_csv_file = filename
 
 
 def _calculate_markers(region, coordinate_field_name):
@@ -178,7 +210,7 @@ def _calculate_markers(region, coordinate_field_name):
 
 def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
-    mesh = fm.findMeshByDimension(1)
+    mesh = fm.findMeshByDimension(3)
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
 
     if mesh is None:
@@ -205,10 +237,10 @@ def _analyze_elements(region, coordinate_field_name):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
         element = el_iterator.next()
         while element.isValid():
-            values_1 = _evaluate_field_data(element, 0, coordinates)
-            values_2 = _evaluate_field_data(element, 1, coordinates)
-            derivatives_1 = _evaluate_field_data(element, 0, xi_1_derivative)
-            derivatives_2 = _evaluate_field_data(element, 1, xi_1_derivative)
+            values_1 = _evaluate_field_data(element, [0, 0.5, 0.5], coordinates)
+            values_2 = _evaluate_field_data(element, [1, 0.5, 0.5], coordinates)
+            derivatives_1 = _evaluate_field_data(element, [0, 0.5, 0.5], xi_1_derivative)
+            derivatives_2 = _evaluate_field_data(element, [1, 0.5, 0.5], xi_1_derivative)
 
             line_path_points = None
             if values_1 and values_2 and derivatives_1 and derivatives_2:
@@ -232,6 +264,8 @@ def _analyze_elements(region, coordinate_field_name):
             element = el_iterator.next()
 
         del xi_1_derivative
+        del mesh_group
+        del group
 
     return grouped_path_points
 
@@ -275,16 +309,6 @@ def _calculate_bezier_control_points(point_data):
                 bezier[point_group].append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
 
     return bezier
-
-
-def _write_svg_bezier_path(bezier_path, ungrouped=False):
-    svg = ''
-    for i in range(len(bezier_path)):
-        b = bezier_path[i]
-        stroke = "blue" if ungrouped else "white"
-        svg += f'<path d="M {b[0][0]} {b[0][1]} C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}" stroke="{stroke}"/>'
-
-    return svg
 
 
 class UnionFind:
@@ -356,17 +380,19 @@ def _connected_segments(curve):
     return segments
 
 
-def _write_connected_svg_bezier_path(bezier_path, ungrouped=False):
-    svg = ''
-    stroke = "blue" if ungrouped else "white"
+def _write_connected_svg_bezier_path(bezier_path, group_name):
+    stroke = "grey" if group_name is None else "#01136e"
 
-    for i in range(len(bezier_path)):
-        b = bezier_path[i]
-        if i == 0:
-            svg += f'<path d="M {b[0][0]} {b[0][1]}'
+    svg = '<path d="'
+    for i, bezier_section in enumerate(bezier_path):
+        m_space = '' if i == 0 else ' '
+        for j, b in enumerate(bezier_section):
+            if j == 0:
+                svg += f'{m_space}M {b[0][0]} {b[0][1]}'
 
-        svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
-    svg += f'" stroke="{stroke}" fill="transparent"/>'
+            svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
+    svg += f'" stroke="{stroke}" fill="none"'
+    svg += '/>' if group_name is None else f'><title>id({group_name}_name)</title></path>'
 
     return svg
 
@@ -375,14 +401,8 @@ def _write_into_svg_format(bezier_data, markers):
     svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
     for group_name in bezier_data:
         connected_paths = _connected_segments(bezier_data[group_name])
-        if group_name == "ungrouped":
-            for connected_bezier_data in connected_paths:
-                svg += _write_connected_svg_bezier_path(connected_bezier_data, ungrouped=True)
-        else:
-            svg += f'<g><title>.centreline id({group_name}_name)</title>'
-            for connected_bezier_data in connected_paths:
-                svg += _write_connected_svg_bezier_path(connected_bezier_data)
-            svg += f'</g>'
+
+        svg += _write_connected_svg_bezier_path(connected_paths, group_name=group_name if group_name != "ungrouped" else None)
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]
@@ -404,3 +424,48 @@ def _write_into_svg_format(bezier_data, markers):
     svg += '</svg>'
 
     return svg
+
+
+def _reverse_map_annotations(csv_reader):
+    reverse_map = {}
+    if csv_reader:
+        first = True
+
+        for row in csv_reader:
+            if first:
+                first = False
+            else:
+                reverse_map[row[1]] = row[0]
+
+    return reverse_map
+
+
+def _label_has_annotations(entry, annotation_map):
+    return entry in annotation_map and annotation_map[entry]
+
+
+def _is_annotation_csv_file(csv_reader):
+    """
+    Check if the given CSV reader represents an annotation CSV file.
+
+    Args:
+        csv_reader (csv.reader): The CSV reader to check.
+
+    Returns:
+        bool: True if it represents an annotation CSV file, False otherwise.
+    """
+    if csv_reader:
+        first = True
+
+        for row in csv_reader:
+            if first:
+                if len(row) == 2 and row[0] == "Term ID" and row[1] == "Group name":
+                    first = False
+                else:
+                    return False
+            elif len(row) != 2:
+                return False
+
+        return True
+
+    return False
