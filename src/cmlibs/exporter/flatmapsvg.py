@@ -126,7 +126,7 @@ class ArgonSceneExporter(BaseExporter):
         features = {}
         centreline_names = []
         for path_key in path_points:
-            if path_key.endswith('_name'):
+            if _is_group_svg_id(path_key):
                 centreline_names.append(path_key)
                 features[path_key] = {
                     "label": path_points[path_key],
@@ -208,6 +208,18 @@ def _calculate_markers(region, coordinate_field_name):
     return marker_data
 
 
+def _group_svg_id(group_name):
+    return group_name.replace("group_", "nerve_feature_")
+
+
+def _is_group_svg_id(name):
+    return name.startswith('nerve_feature_')
+
+
+def _group_number(index, size_of_digits):
+    return f"{index + 1}".rjust(size_of_digits, '0')
+
+
 def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
     mesh = fm.findMeshByDimension(3)
@@ -224,17 +236,19 @@ def _analyze_elements(region, coordinate_field_name):
     grouped_path_points = {
         "ungrouped": []
     }
+
+    size_of_digits = len(f'{len(group_list)}')
     for group in group_list:
         group_name = group.getName()
         if group_name != "marker":
-            group_label = f"group_{group_index + 1}"
+            group_label = f"group_{_group_number(group_index, size_of_digits)}"
             grouped_path_points[group_label] = []
-            grouped_path_points[f"{group_label}_name"] = group_name
+            grouped_path_points[_group_svg_id(group_label)] = group_name
         group_index += 1
-    el_iterator = mesh.createElementiterator()
 
     with ChangeManager(fm):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
+        el_iterator = mesh.createElementiterator()
         element = el_iterator.next()
         while element.isValid():
             values_1 = _evaluate_field_data(element, [0, 0.5, 0.5], coordinates)
@@ -252,7 +266,7 @@ def _analyze_elements(region, coordinate_field_name):
                 for group in group_list:
                     mesh_group = group.getMeshGroup(mesh)
                     if mesh_group.containsElement(element):
-                        group_label = f"group_{group_index + 1}"
+                        group_label = f"group_{_group_number(group_index, size_of_digits)}"
                         grouped_path_points[group_label].append(line_path_points)
                         in_group = True
 
@@ -303,7 +317,7 @@ def _calculate_bezier_control_points(point_data):
     bezier = {}
 
     for point_group in point_data:
-        if point_data[point_group] and not point_group.endswith("_name"):
+        if point_data[point_group] and isinstance(point_data[point_group], list):
             bezier[point_group] = []
             for curve_pts in point_data[point_group]:
                 bezier[point_group].append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
@@ -392,7 +406,7 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
 
             svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
     svg += f'" stroke="{stroke}" fill="none"'
-    svg += '/>' if group_name is None else f'><title>id({group_name}_name)</title></path>'
+    svg += '/>' if group_name is None else f'><title>.centreline id({_group_svg_id(group_name)})</title></path>'
 
     return svg
 
