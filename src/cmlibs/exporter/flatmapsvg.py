@@ -3,7 +3,11 @@ Export an Argon document to source document(s) suitable for the generating
 flatmaps from.
 """
 import csv
+import functools
 import json
+import logging
+import operator
+
 import math
 import os
 import random
@@ -12,7 +16,7 @@ from decimal import Decimal
 from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
 
-from cmlibs.zinc.field import Field
+from cmlibs.zinc.field import Field, FieldGroup
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
@@ -20,6 +24,8 @@ from cmlibs.maths.vectorops import sub, div, add
 from cmlibs.utils.zinc.field import get_group_list
 from cmlibs.utils.zinc.general import ChangeManager
 
+
+logger = logging.getLogger(__name__)
 
 SVG_COLOURS = [
     "aliceblue", "aquamarine", "azure", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
@@ -91,7 +97,7 @@ class ArgonSceneExporter(BaseExporter):
             graphics are included in the export.
         """
         region = scene.getRegion()
-        path_points = _analyze_elements(region, "coordinates")
+        path_points, svg_id_group_map = _analyze_elements(region, "coordinates")
         bezier = _calculate_bezier_control_points(path_points)
         markers = _calculate_markers(region, "coordinates")
         svg_string = _write_into_svg_format(bezier, markers)
@@ -127,15 +133,14 @@ class ArgonSceneExporter(BaseExporter):
 
         features = {}
         centreline_names = []
-        for path_key in path_points:
-            if _is_group_svg_id(path_key):
-                centreline_names.append(path_key)
-                features[path_key] = {
-                    "label": path_points[path_key],
-                    "type": "centreline",
-                }
-                if reversed_map is not None and _label_has_annotations(path_points[path_key], reversed_map):
-                    features[path_key]["models"] = reversed_map[path_points[path_key]]
+        for path_key, path_value in svg_id_group_map.items():
+            centreline_names.append(path_key)
+            features[path_key] = {
+                "label": path_value,
+                "type": "centreline",
+            }
+            if reversed_map is not None and _label_has_annotations(path_value, reversed_map):
+                features[path_key]["models"] = reversed_map[path_value]
 
         networks = []
         centrelines = []
@@ -222,6 +227,10 @@ def _group_number(index, size_of_digits):
     return f"{index + 1}".rjust(size_of_digits, '0')
 
 
+def _define_group_label(group_index, size_of_digits):
+    return f"group_{_group_number(group_index, size_of_digits)}"
+
+
 def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
     mesh = fm.findMeshByDimension(3)
@@ -234,22 +243,29 @@ def _analyze_elements(region, coordinate_field_name):
         return []
 
     group_list = get_group_list(fm)
-    group_index = 0
     grouped_path_points = {
         "ungrouped": []
     }
+    svg_id_group_map = {}
 
     size_of_digits = len(f'{len(group_list)}')
-    for group in group_list:
+    for group_index, group in enumerate(group_list):
         group_name = group.getName()
         if group_name != "marker":
-            group_label = f"group_{_group_number(group_index, size_of_digits)}"
+            group_label = _define_group_label(group_index, size_of_digits)
             grouped_path_points[group_label] = []
-            grouped_path_points[_group_svg_id(group_label)] = group_name
-        group_index += 1
+            svg_id_group_map[_group_svg_id(group_label)] = group_name
 
     with ChangeManager(fm):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
+
+        element_node_map, node_element_map = _build_group_node_element_maps(mesh, coordinates)
+        print("element_node_map:")
+        print(element_node_map)
+        print("node_element_map:")
+        print(node_element_map)
+
+        all_branches = []
         el_iterator = mesh.createElementiterator()
         element = el_iterator.next()
         while element.isValid():
@@ -263,16 +279,40 @@ def _analyze_elements(region, coordinate_field_name):
                 line_path_points = [(values_1, derivatives_1), (values_2, derivatives_2)]
 
             if line_path_points is not None:
-                group_index = 0
+                in_groups = []
                 in_group = False
-                for group in group_list:
+                for group_index, group in enumerate(group_list):
                     mesh_group = group.getMeshGroup(mesh)
                     if mesh_group.containsElement(element):
-                        group_label = f"group_{_group_number(group_index, size_of_digits)}"
+                        group_label = _define_group_label(group_index, size_of_digits)
                         grouped_path_points[group_label].append(line_path_points)
                         in_group = True
+                        in_groups.append(group.getName())
+                        # field_group = fm.createFieldGroup()
+                        # field_group.setSubelementHandlingMode(FieldGroup.SUBELEMENT_HANDLING_MODE_FULL)
+                        # adjacent_mesh_group = field_group.createMeshGroup(mesh)
+                        # adjacent_mesh_group.addElement(element)
+                        # adjacent_mesh_group.addAdjacentElements(2)
+                        # element_iterator = adjacent_mesh_group.createElementiterator()
+                        # adjacent_element = element_iterator.next()
+                        # print("adjacent group size:", adjacent_mesh_group.getSize())
+                        # while adjacent_element.isValid():
+                        el_node_identifiers = element_node_map[element.getIdentifier()]
+                        adjacent_element_identifiers = [node_element_map[node_id] for node_id in el_node_identifiers]
+                        adjacent_element_identifiers = set(functools.reduce(operator.iconcat, adjacent_element_identifiers, []))
+                        for adjacent_element_identifier in adjacent_element_identifiers:
+                            adjacent_element = mesh.findElementByIdentifier(adjacent_element_identifier)
+                            for other_group in group_list:
+                                other_mesh_group = other_group.getMeshGroup(mesh)
+                                if other_mesh_group.containsElement(adjacent_element):
+                                    # print("adjacent element in group: ", adjacent_element.getIdentifier(), other_mesh_group.getName(), other_group.getName())
+                                    if other_group.getName() not in in_groups:
+                                        in_groups.append(other_group.getName())
 
-                    group_index += 1
+                if len(in_groups) > 1:
+                    if in_groups not in all_branches:
+                        all_branches.append(in_groups)
+                    # print(f"In multiple groups: {element.getIdentifier()} - {in_groups}")
 
                 if not in_group:
                     grouped_path_points["ungrouped"].append(line_path_points)
@@ -283,7 +323,34 @@ def _analyze_elements(region, coordinate_field_name):
         del mesh_group
         del group
 
-    return grouped_path_points
+        for i, branch in enumerate(all_branches):
+            print(i + 1, branch)
+
+    print("grouped path points:")
+    print(grouped_path_points.keys())
+    return grouped_path_points, svg_id_group_map
+
+
+def _build_group_node_element_maps(mesh_group, coordinates):
+    element_node_ids = {}
+    node_element_ids = {}
+    elem_iter = mesh_group.createElementiterator()
+    element = elem_iter.next()
+    while element.isValid():
+        eft = element.getElementfieldtemplate(coordinates, -1)  # since all the same
+        element_id = element.getIdentifier()
+        node_ids = []
+        for ln in range(1, eft.getNumberOfLocalNodes() + 1):
+            node = element.getNode(eft, ln)
+            node_id = node.getIdentifier()
+            node_ids.append(node_id)
+            node_element_ids[node_id] = node_element_ids.get(node_id, [])
+            node_element_ids[node_id].append(element_id)
+
+        element_node_ids[element_id] = node_ids
+        element = elem_iter.next()
+
+    return element_node_ids, node_element_ids
 
 
 def _evaluate_field_data(element, xi, data_field):
@@ -319,7 +386,7 @@ def _calculate_bezier_control_points(point_data):
     bezier = {}
 
     for point_group in point_data:
-        if point_data[point_group] and isinstance(point_data[point_group], list):
+        if point_data[point_group]:
             bezier[point_group] = []
             for curve_pts in point_data[point_group]:
                 bezier[point_group].append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
@@ -434,11 +501,10 @@ def _write_into_svg_format(bezier_data, markers):
         connected_paths = _connected_segments(bezier_data[group_name])
 
         if len(connected_paths) > 1:
-            print("---------")
-            print("Two of the following points should have been detected as the same point.")
+            logger.warning("Two (or more) of the following points should have been detected as the same point.")
             for connected_path in connected_paths:
-                print(connected_path[0][0])
-                print(connected_path[-1][-1])
+                logger.warning(f"{connected_path[0][0]} - {connected_path[-1][-1]}")
+
         svg += _write_connected_svg_bezier_path(connected_paths, group_name=group_name if group_name != "ungrouped" else None)
 
     # for i in range(len(bezier_path)):
