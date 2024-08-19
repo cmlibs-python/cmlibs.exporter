@@ -97,10 +97,11 @@ class ArgonSceneExporter(BaseExporter):
             graphics are included in the export.
         """
         region = scene.getRegion()
-        path_points, svg_id_group_map = _analyze_elements(region, "coordinates")
+        path_points, branching_points, svg_id_group_map = _analyze_elements(region, "coordinates")
         bezier = _calculate_bezier_control_points(path_points)
         markers = _calculate_markers(region, "coordinates")
-        svg_string = _write_into_svg_format(bezier, markers)
+        connected_segments = _collect_curves_into_segments(bezier)
+        svg_string = _write_into_svg_format(connected_segments, markers, branching_points)
         paths, attributes = svg2paths(svg_string)
         bbox = [999999999, -999999999, 999999999, -999999999]
         for p in paths:
@@ -219,10 +220,6 @@ def _group_svg_id(group_name):
     return group_name.replace("group_", "nerve_feature_")
 
 
-def _is_group_svg_id(name):
-    return name.startswith('nerve_feature_')
-
-
 def _group_number(index, size_of_digits):
     return f"{index + 1}".rjust(size_of_digits, '0')
 
@@ -231,10 +228,16 @@ def _define_group_label(group_index, size_of_digits):
     return f"group_{_group_number(group_index, size_of_digits)}"
 
 
+def _define_point_title(index, size_of_digits):
+    return f"point_{_group_number(index, size_of_digits)}"
+
+
 def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
     mesh = fm.findMeshByDimension(3)
+    node_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
+    fc = fm.createFieldcache()
 
     if mesh is None:
         return []
@@ -247,6 +250,7 @@ def _analyze_elements(region, coordinate_field_name):
         "ungrouped": []
     }
     svg_id_group_map = {}
+    # grouped_element_info = {}
 
     size_of_digits = len(f'{len(group_list)}')
     for group_index, group in enumerate(group_list):
@@ -254,18 +258,15 @@ def _analyze_elements(region, coordinate_field_name):
         if group_name != "marker":
             group_label = _define_group_label(group_index, size_of_digits)
             grouped_path_points[group_label] = []
+            # grouped_element_info[group_label] = []
             svg_id_group_map[_group_svg_id(group_label)] = group_name
 
     with ChangeManager(fm):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
 
         element_node_map, node_element_map = _build_group_node_element_maps(mesh, coordinates)
-        print("element_node_map:")
-        print(element_node_map)
-        print("node_element_map:")
-        print(node_element_map)
+        branching_elements = [element_id for element_id, node_ids in element_node_map.items() if len(node_ids) == 3]
 
-        all_branches = []
         el_iterator = mesh.createElementiterator()
         element = el_iterator.next()
         while element.isValid():
@@ -279,7 +280,6 @@ def _analyze_elements(region, coordinate_field_name):
                 line_path_points = [(values_1, derivatives_1), (values_2, derivatives_2)]
 
             if line_path_points is not None:
-                in_groups = []
                 in_group = False
                 for group_index, group in enumerate(group_list):
                     mesh_group = group.getMeshGroup(mesh)
@@ -287,32 +287,6 @@ def _analyze_elements(region, coordinate_field_name):
                         group_label = _define_group_label(group_index, size_of_digits)
                         grouped_path_points[group_label].append(line_path_points)
                         in_group = True
-                        in_groups.append(group.getName())
-                        # field_group = fm.createFieldGroup()
-                        # field_group.setSubelementHandlingMode(FieldGroup.SUBELEMENT_HANDLING_MODE_FULL)
-                        # adjacent_mesh_group = field_group.createMeshGroup(mesh)
-                        # adjacent_mesh_group.addElement(element)
-                        # adjacent_mesh_group.addAdjacentElements(2)
-                        # element_iterator = adjacent_mesh_group.createElementiterator()
-                        # adjacent_element = element_iterator.next()
-                        # print("adjacent group size:", adjacent_mesh_group.getSize())
-                        # while adjacent_element.isValid():
-                        el_node_identifiers = element_node_map[element.getIdentifier()]
-                        adjacent_element_identifiers = [node_element_map[node_id] for node_id in el_node_identifiers]
-                        adjacent_element_identifiers = set(functools.reduce(operator.iconcat, adjacent_element_identifiers, []))
-                        for adjacent_element_identifier in adjacent_element_identifiers:
-                            adjacent_element = mesh.findElementByIdentifier(adjacent_element_identifier)
-                            for other_group in group_list:
-                                other_mesh_group = other_group.getMeshGroup(mesh)
-                                if other_mesh_group.containsElement(adjacent_element):
-                                    # print("adjacent element in group: ", adjacent_element.getIdentifier(), other_mesh_group.getName(), other_group.getName())
-                                    if other_group.getName() not in in_groups:
-                                        in_groups.append(other_group.getName())
-
-                if len(in_groups) > 1:
-                    if in_groups not in all_branches:
-                        all_branches.append(in_groups)
-                    # print(f"In multiple groups: {element.getIdentifier()} - {in_groups}")
 
                 if not in_group:
                     grouped_path_points["ungrouped"].append(line_path_points)
@@ -323,17 +297,22 @@ def _analyze_elements(region, coordinate_field_name):
         del mesh_group
         del group
 
-        for i, branch in enumerate(all_branches):
-            print(i + 1, branch)
+        branching_points = []
+        for branch_element_id in branching_elements:
+            branch_element = mesh.findElementByIdentifier(branch_element_id)
+            values_1 = _evaluate_field_data(branch_element, [0, 0.5, 0.5], coordinates)
+            branching_points.append(values_1)
 
-    print("grouped path points:")
-    print(grouped_path_points.keys())
-    return grouped_path_points, svg_id_group_map
+    print(branching_elements)
+    print(branching_points)
+
+    return grouped_path_points, branching_points, svg_id_group_map
 
 
 def _build_group_node_element_maps(mesh_group, coordinates):
     element_node_ids = {}
     node_element_ids = {}
+    # print("Element node tree:")
     elem_iter = mesh_group.createElementiterator()
     element = elem_iter.next()
     while element.isValid():
@@ -347,6 +326,7 @@ def _build_group_node_element_maps(mesh_group, coordinates):
             node_element_ids[node_id] = node_element_ids.get(node_id, [])
             node_element_ids[node_id].append(element_id)
 
+        # print(f"{element_id} - {node_ids}")
         element_node_ids[element_id] = node_ids
         element = elem_iter.next()
 
@@ -478,6 +458,21 @@ def _connected_segments(curve):
     return segments
 
 
+def _collect_curves_into_segments(bezier_data):
+    collection_of_paths = {}
+    for group_name in bezier_data:
+        connected_paths = _connected_segments(bezier_data[group_name])
+
+        if len(connected_paths) > 1:
+            logger.warning("Two (or more) of the following points should have been detected as the same point.")
+            for connected_path in connected_paths:
+                logger.warning(f"{connected_path[0][0]} - {connected_path[-1][-1]}")
+
+        collection_of_paths[group_name] = connected_paths
+
+    return collection_of_paths
+
+
 def _write_connected_svg_bezier_path(bezier_path, group_name):
     stroke = "grey" if group_name is None else "#01136e"
 
@@ -495,17 +490,18 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
     return svg
 
 
-def _write_into_svg_format(bezier_data, markers):
+def _write_svg_circle(point, identifier):
+    return f'<circle style="fill: rgb(216, 216, 216);" cx="{point[0]}" cy="{point[1]}" r="0.9054"><title>.id({identifier})</title></circle>'
+
+
+def _write_into_svg_format(connected_paths, markers, branching_points):
     svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
-    for group_name in bezier_data:
-        connected_paths = _connected_segments(bezier_data[group_name])
+    size_of_digits = len(f'{len(branching_points)}')
+    for index, branching_point in enumerate(branching_points):
+        svg += _write_svg_circle(branching_point, _define_point_title(index, size_of_digits))
 
-        if len(connected_paths) > 1:
-            logger.warning("Two (or more) of the following points should have been detected as the same point.")
-            for connected_path in connected_paths:
-                logger.warning(f"{connected_path[0][0]} - {connected_path[-1][-1]}")
-
-        svg += _write_connected_svg_bezier_path(connected_paths, group_name=group_name if group_name != "ungrouped" else None)
+    for group_name, connected_path in connected_paths.items():
+        svg += _write_connected_svg_bezier_path(connected_path, group_name=group_name if group_name != "ungrouped" else None)
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]
