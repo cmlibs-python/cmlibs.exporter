@@ -141,19 +141,9 @@ class ArgonSceneExporter(BaseExporter):
                     fh.seek(0)
                     reversed_map = _reverse_map_annotations(result)
 
+        networks = [_create_vagus_network(network_plan, {v: k for k, v in svg_id_group_map.items()}, reversed_map)]
+
         features = {}
-        centreline_names = []
-        for path_key, path_value in svg_id_group_map.items():
-            centreline_names.append(path_key)
-            features[path_key] = {
-                "label": path_value,
-                "type": "centreline",
-            }
-            if reversed_map is not None and _label_has_annotations(path_value, reversed_map):
-                features[path_key]["models"] = reversed_map[path_value]
-
-        networks = [_create_vagus_network(network_plan, {v: k for k, v in svg_id_group_map.items()})]
-
         for marker in markers:
             feature = {
                 "name": marker[2],
@@ -162,7 +152,9 @@ class ArgonSceneExporter(BaseExporter):
             }
             features[marker[0]] = feature
 
-        properties = {"features": features, "networks": networks}
+        properties = {"networks": networks}
+        if features:
+            properties["features"] = features
 
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
@@ -474,23 +466,27 @@ def _determine_network(region, end_point_data, coordinate_field_name):
     return final_network, final_network_points
 
 
-def _create_plan(label, plan_data, group_svg_id_map):
-    return {
+def _create_plan(label, plan_data, group_svg_id_map, annotations_map):
+    plan = {
         "id": group_svg_id_map[label],
         "label": label,
         "connects": plan_data,
     }
+    if annotations_map is not None and _label_has_annotations(label, annotations_map):
+        plan["models"] = annotations_map[label]
+
+    return plan
 
 
-def _create_network_centrelines(network_plan, group_svg_id_map):
-    return [_create_plan(label, data, group_svg_id_map) for label, data in network_plan.items()]
+def _create_network_centrelines(network_plan, group_svg_id_map, annotations_map):
+    return [_create_plan(label, data, group_svg_id_map, annotations_map) for label, data in network_plan.items()]
 
 
-def _create_vagus_network(network_plan, group_svg_id_map):
+def _create_vagus_network(network_plan, group_svg_id_map, annotations_map):
     return {
         "id": "vagus",
         "type": "nerve",
-        "centrelines": _create_network_centrelines(network_plan, group_svg_id_map)
+        "centrelines": _create_network_centrelines(network_plan, group_svg_id_map, annotations_map)
     }
 
 
@@ -617,7 +613,7 @@ def _connected_segments(curve):
     for index, c in enumerate(curve):
         key = _create_key(c[0], key_tolerance)
         if key in begin_hash:
-            print("problem repeated key!", index, c)
+            logger.warning(f"Problem repeated key found while trying to connect segments! {index} - {c}")
         begin_hash[key] = index
 
     curve_size = len(curve)
@@ -681,7 +677,7 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
 
             svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
     svg += f'" stroke="{stroke}" fill="none"'
-    svg += '/>' if group_name is None else f'><title>.centreline id({_group_svg_id(group_name)})</title></path>'
+    svg += '/>' if group_name is None else f'><title>.id({_group_svg_id(group_name)})</title></path>'
 
     return svg
 
@@ -736,7 +732,7 @@ def _reverse_map_annotations(csv_reader):
 
 
 def _label_has_annotations(entry, annotation_map):
-    return entry in annotation_map and annotation_map[entry]
+    return entry in annotation_map and annotation_map[entry] and annotation_map[entry] != "None"
 
 
 def _is_annotation_csv_file(csv_reader):
