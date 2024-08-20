@@ -4,6 +4,8 @@ flatmaps from.
 """
 import csv
 import json
+import logging
+
 import math
 import os
 import random
@@ -12,14 +14,15 @@ from decimal import Decimal
 from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
 
-from cmlibs.zinc.field import Field
+from cmlibs.zinc.field import Field, FieldGroup, FieldFindMeshLocation
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
-from cmlibs.maths.vectorops import sub, div, add
+from cmlibs.maths.vectorops import sub, div, add, magnitude
 from cmlibs.utils.zinc.field import get_group_list
 from cmlibs.utils.zinc.general import ChangeManager
 
+logger = logging.getLogger(__name__)
 
 SVG_COLOURS = [
     "aliceblue", "aquamarine", "azure", "blanchedalmond", "blue", "blueviolet", "brown", "burlywood",
@@ -91,29 +94,45 @@ class ArgonSceneExporter(BaseExporter):
             graphics are included in the export.
         """
         region = scene.getRegion()
-        path_points = _analyze_elements(region, "coordinates")
+        path_points, svg_id_group_map = _analyze_elements(region, "coordinates")
         bezier = _calculate_bezier_control_points(path_points)
         markers = _calculate_markers(region, "coordinates")
-        svg_string = _write_into_svg_format(bezier, markers)
-        paths, attributes = svg2paths(svg_string)
-        bbox = [999999999, -999999999, 999999999, -999999999]
-        for p in paths:
-            path_bbox = p.bbox()
-            bbox[0] = min(path_bbox[0], bbox[0])
-            bbox[1] = max(path_bbox[1], bbox[1])
-            bbox[2] = min(path_bbox[2], bbox[2])
-            bbox[3] = max(path_bbox[3], bbox[3])
+        connected_segments = _collect_curves_into_segments(bezier)
+        end_point_data = _collate_end_points(connected_segments, svg_id_group_map)
+        network_plan, network_points = _determine_network(region, end_point_data, "coordinates")
+        svg_string = _write_into_svg_format(connected_segments, markers, network_points)
 
-        view_margin = 10
-        view_box = (int(bbox[0] + 0.5) - view_margin,
-                    int(bbox[2] + 0.5) - view_margin,
-                    int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
-                    int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
-
+        view_box = _calculate_view_box(svg_string)
         svg_string = svg_string.replace('viewBox="WWW XXX YYY ZZZ"', f'viewBox="{view_box[0]} {view_box[1]} {view_box[2]} {view_box[3]}"')
 
         svg_string = parseString(svg_string).toprettyxml()
 
+        reversed_annotations_map = self._read_reversed_annotations_map()
+        networks = [_create_vagus_network(network_plan, {v: k for k, v in svg_id_group_map.items()}, reversed_annotations_map)]
+
+        features = {}
+        for marker in markers:
+            feature = {
+                "name": marker[2],
+                "models": marker[3],
+                "colour": "orange"
+            }
+            features[marker[0]] = feature
+
+        properties = {"networks": networks}
+        if features:
+            properties["features"] = features
+
+        with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
+            f.write(svg_string)
+
+        with open(os.path.join(self._output_target, 'properties.json'), 'w') as f:
+            json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
+
+    def set_annotations_csv_file(self, filename):
+        self._annotations_csv_file = filename
+
+    def _read_reversed_annotations_map(self):
         reversed_map = None
         if self._annotations_csv_file is not None:
             with open(self._annotations_csv_file) as fh:
@@ -125,44 +144,7 @@ class ArgonSceneExporter(BaseExporter):
                     fh.seek(0)
                     reversed_map = _reverse_map_annotations(result)
 
-        features = {}
-        centreline_names = []
-        for path_key in path_points:
-            if _is_group_svg_id(path_key):
-                centreline_names.append(path_key)
-                features[path_key] = {
-                    "label": path_points[path_key],
-                    "type": "centreline",
-                }
-                if reversed_map is not None and _label_has_annotations(path_points[path_key], reversed_map):
-                    features[path_key]["models"] = reversed_map[path_points[path_key]]
-
-        networks = []
-        centrelines = []
-        for centreline_name in centreline_names:
-            centrelines.append({"id": centreline_name})
-
-        # May at some point be able to describe the connectivity between centrelines.
-        # networks.append({"centrelines": centrelines})
-
-        for marker in markers:
-            feature = {
-                "name": marker[2],
-                "models": marker[3],
-                "colour": "orange"
-            }
-            features[marker[0]] = feature
-
-        properties = {"features": features, "networks": networks}
-
-        with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
-            f.write(svg_string)
-
-        with open(os.path.join(self._output_target, 'properties.json'), 'w') as f:
-            json.dump(properties, f, default=lambda o: o.__dict__, sort_keys=True, indent=2)
-
-    def set_annotations_csv_file(self, filename):
-        self._annotations_csv_file = filename
+        return reversed_map
 
 
 def _calculate_markers(region, coordinate_field_name):
@@ -214,12 +196,16 @@ def _group_svg_id(group_name):
     return group_name.replace("group_", "nerve_feature_")
 
 
-def _is_group_svg_id(name):
-    return name.startswith('nerve_feature_')
-
-
 def _group_number(index, size_of_digits):
     return f"{index + 1}".rjust(size_of_digits, '0')
+
+
+def _define_group_label(group_index, size_of_digits):
+    return f"group_{_group_number(group_index, size_of_digits)}"
+
+
+def _define_point_title(index, size_of_digits):
+    return f"point_{_group_number(index, size_of_digits)}"
 
 
 def _analyze_elements(region, coordinate_field_name):
@@ -234,22 +220,23 @@ def _analyze_elements(region, coordinate_field_name):
         return []
 
     group_list = get_group_list(fm)
-    group_index = 0
     grouped_path_points = {
         "ungrouped": []
     }
+    svg_id_group_map = {}
 
     size_of_digits = len(f'{len(group_list)}')
-    for group in group_list:
+    for group_index, group in enumerate(group_list):
         group_name = group.getName()
         if group_name != "marker":
-            group_label = f"group_{_group_number(group_index, size_of_digits)}"
+            group_label = _define_group_label(group_index, size_of_digits)
             grouped_path_points[group_label] = []
-            grouped_path_points[_group_svg_id(group_label)] = group_name
-        group_index += 1
+            # grouped_element_info[group_label] = []
+            svg_id_group_map[_group_svg_id(group_label)] = group_name
 
     with ChangeManager(fm):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
+
         el_iterator = mesh.createElementiterator()
         element = el_iterator.next()
         while element.isValid():
@@ -263,16 +250,13 @@ def _analyze_elements(region, coordinate_field_name):
                 line_path_points = [(values_1, derivatives_1), (values_2, derivatives_2)]
 
             if line_path_points is not None:
-                group_index = 0
                 in_group = False
-                for group in group_list:
+                for group_index, group in enumerate(group_list):
                     mesh_group = group.getMeshGroup(mesh)
                     if mesh_group.containsElement(element):
-                        group_label = f"group_{_group_number(group_index, size_of_digits)}"
+                        group_label = _define_group_label(group_index, size_of_digits)
                         grouped_path_points[group_label].append(line_path_points)
                         in_group = True
-
-                    group_index += 1
 
                 if not in_group:
                     grouped_path_points["ungrouped"].append(line_path_points)
@@ -283,7 +267,208 @@ def _analyze_elements(region, coordinate_field_name):
         del mesh_group
         del group
 
-    return grouped_path_points
+    return grouped_path_points, svg_id_group_map
+
+
+def _calculate_view_box(svg_string):
+    paths, attributes = svg2paths(svg_string)
+    bbox = [999999999, -999999999, 999999999, -999999999]
+    for p in paths:
+        path_bbox = p.bbox()
+        bbox[0] = min(path_bbox[0], bbox[0])
+        bbox[1] = max(path_bbox[1], bbox[1])
+        bbox[2] = min(path_bbox[2], bbox[2])
+        bbox[3] = max(path_bbox[3], bbox[3])
+
+    view_margin = 10
+    return (int(bbox[0] + 0.5) - view_margin,
+            int(bbox[2] + 0.5) - view_margin,
+            int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
+            int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
+
+
+def _determine_network(region, end_point_data, coordinate_field_name):
+    mesh_dimension = 3
+    fm = region.getFieldmodule()
+    mesh = fm.findMeshByDimension(mesh_dimension)
+    mesh_1d = fm.findMeshByDimension(1)
+    # data_point_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
+    coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
+    vagus_coordinates = fm.findFieldByName("vagus coordinates").castFiniteElement()
+    find_mesh_location_field = fm.createFieldFindMeshLocation(coordinates, coordinates, mesh_1d)
+    # find_mesh_location_field.setSearchMode(FieldFindMeshLocation.SEARCH_MODE_EXACT)
+    find_mesh_location_field.setSearchMode(FieldFindMeshLocation.SEARCH_MODE_NEAREST)
+    # data_point_coordinate_field = fm.createFieldFiniteElement(3)
+    fc = fm.createFieldcache()
+
+    if mesh is None:
+        return []
+
+    if mesh.getSize() == 0:
+        return []
+
+    group_list = get_group_list(fm)
+
+    # Map the 3D element groups to 1D elements with the same identifier.
+    # This relies on the fact that the 3D elements are built from the
+    # underlying 1D elements and that their is an exact 1-to-1 match
+    # between identifiers.
+    group_1d_group_map = {}
+    for group in group_list:
+        group_1d_group_map[group.getName()] = None
+        mesh_group = group.getMeshGroup(mesh)
+        if mesh_group.getSize():
+            field_group_1d = fm.createFieldGroup()
+            group_1d_group_map[group.getName()] = field_group_1d
+            mesh_1d_group = field_group_1d.createMeshGroup(mesh_1d)
+            field_group_1d.setName(f"{group.getName()} 1D")
+            group_iterator = mesh_group.createElementiterator()
+            group_element = group_iterator.next()
+            group_element_ids = []
+            while group_element.isValid():
+                element_1d = mesh_1d.findElementByIdentifier(group_element.getIdentifier())
+                mesh_1d_group.addElement(element_1d)
+                group_element_ids.append(group_element.getIdentifier())
+                group_element = group_iterator.next()
+
+    # with ChangeManager(fm):
+    #     node_template = data_point_set.createNodetemplate()
+    #     node_template.defineField(data_point_coordinate_field)
+    #     datapoint = data_point_set.createNode(-1, node_template)
+    #     fc.setNode(datapoint)
+
+    min_value = {}
+    start_value = {}
+    end_value = {}
+    network_points_1 = []
+    for group_name, end_points in end_point_data.items():
+        start_coordinate = [0.0] * 3
+        end_coordinate = [0.0] * 3
+        network_points_1.extend([end_points[0][0], end_points[0][1]])
+        start_coordinate[:2] = end_points[0][0]
+        end_coordinate[:2] = end_points[0][1]
+
+        group_1d = group_1d_group_map[group_name]
+        if group_1d is not None:
+            mesh_group = group_1d.getMeshGroup(mesh_1d)
+            find_mesh_location_field.setSearchMesh(mesh_group)
+            fc.setFieldReal(coordinates, end_coordinate)
+            mesh_location = find_mesh_location_field.evaluateMeshLocation(fc, 1)
+            fc.setMeshLocation(mesh_location[0], mesh_location[1])
+            end_value[group_name] = vagus_coordinates.evaluateReal(fc, 3)[1]
+            fc.setFieldReal(coordinates, start_coordinate)
+            mesh_location = find_mesh_location_field.evaluateMeshLocation(fc, 1)
+            fc.setMeshLocation(mesh_location[0], mesh_location[1])
+            start_value[group_name] = vagus_coordinates.evaluateReal(fc, 3)[1]
+
+        min_value[group_name] = [math.inf, None, None, None]
+        for group in group_list:
+            group_1d = group_1d_group_map[group.getName()]
+            if group_1d is not None:
+                mesh_group = group_1d.getMeshGroup(mesh_1d)
+                if mesh_group.getSize() and group_name != group.getName():
+
+                    find_mesh_location_field.setSearchMesh(mesh_group)
+                    fc.setFieldReal(coordinates, start_coordinate)
+                    mesh_location = find_mesh_location_field.evaluateMeshLocation(fc, 1)
+                    if mesh_location[0].isValid():
+                        fc.setMeshLocation(mesh_location[0], mesh_location[1])
+                        result_1, values = coordinates.evaluateReal(fc, 3)
+                        result_2, material_values = vagus_coordinates.evaluateReal(fc, 3)
+                        if result_1 == RESULT_OK and result_2 == RESULT_OK:
+                            tolerance = _calculate_tolerance(start_coordinate + values)
+                            diff = magnitude(sub(start_coordinate, values))
+                            if diff < tolerance and diff < min_value[group_name][0]:
+                                min_value[group_name] = [diff, group.getName(), material_values, values]
+
+    network_points = {}
+    for group_name, end_points in end_point_data.items():
+        network_points[group_name] = network_points.get(group_name, [(0.0, end_points[0][0]), (1.0, end_points[0][1])])
+        if group_name in min_value:
+            values = min_value[group_name]
+            int_branch = values[1]
+            int_location = values[2]
+            if int_branch is not None:
+                network_points_1.append(values[3][:2])
+                branch_start = start_value[int_branch]
+                branch_end = end_value[int_branch]
+                branch_length = magnitude(sub(branch_end, branch_start))
+                int_length = magnitude(sub(int_location, branch_start))
+                network_points[int_branch] = network_points.get(int_branch, [(0.0, end_point_data[int_branch][0][0]), (1.0, end_point_data[int_branch][0][1])])
+                network_points[int_branch].append((int_length / branch_length, values[3][:2]))
+
+    numbers = []
+    points = []
+    for i, vv in network_points.items():
+        for v in vv:
+            numbers.extend(v[1])
+            points.append(v[1])
+
+    key_tolerance = 1 / _calculate_tolerance(numbers)
+
+    begin_hash = {}
+    for index, pt in enumerate(points):
+        key = _create_key(pt, key_tolerance)
+        begin_hash[key] = begin_hash.get(key, index)
+
+    network_points_2 = []
+    index_map = {}
+    for pt in points:
+        key = _create_key(pt, key_tolerance)
+        index = begin_hash[key]
+        if index not in index_map:
+            index_map[index] = len(network_points_2)
+            network_points_2.append(pt)
+
+    final_network_points = network_points_2
+    size_of_digits = len(f'{len(final_network_points)}')
+    final_network = {}
+    for group_name, values in network_points.items():
+        final_network[group_name] = []
+        sorted_values = sorted(values, key=lambda tup: tup[0])
+        for value in sorted_values:
+            key = _create_key(value[1], key_tolerance)
+            index = begin_hash[key]
+            mapped_name = _define_point_title(index_map[index], size_of_digits)
+            if mapped_name not in final_network[group_name]:
+                final_network[group_name].append(mapped_name)
+
+    return final_network, final_network_points
+
+
+def _collate_end_points(connected_segments, svg_id_group_map):
+    end_point_data = {}
+    for group_name, connected_segment in connected_segments.items():
+        end_points = []
+        for c in connected_segment:
+            end_points.append((c[0][0], c[-1][3]))
+        svg_id = _group_svg_id(group_name)
+        end_point_data[svg_id_group_map[svg_id]] = end_points
+    return end_point_data
+
+
+def _create_plan(label, plan_data, group_svg_id_map, annotations_map):
+    plan = {
+        "id": group_svg_id_map[label],
+        "label": label,
+        "connects": plan_data,
+    }
+    if annotations_map is not None and _label_has_annotations(label, annotations_map):
+        plan["models"] = annotations_map[label]
+
+    return plan
+
+
+def _create_network_centrelines(network_plan, group_svg_id_map, annotations_map):
+    return [_create_plan(label, data, group_svg_id_map, annotations_map) for label, data in network_plan.items()]
+
+
+def _create_vagus_network(network_plan, group_svg_id_map, annotations_map):
+    return {
+        "id": "vagus",
+        "type": "nerve",
+        "centrelines": _create_network_centrelines(network_plan, group_svg_id_map, annotations_map)
+    }
 
 
 def _evaluate_field_data(element, xi, data_field):
@@ -319,7 +504,7 @@ def _calculate_bezier_control_points(point_data):
     bezier = {}
 
     for point_group in point_data:
-        if point_data[point_group] and isinstance(point_data[point_group], list):
+        if point_data[point_group]:
             bezier[point_group] = []
             for curve_pts in point_data[point_group]:
                 bezier[point_group].append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
@@ -354,27 +539,38 @@ def _count_significant_figs(num_str):
 
 
 def _create_key(pt, tolerance=1e8):
-    return int(pt[0] * tolerance), int(pt[1] * tolerance)
+    return tuple(int(p * tolerance) for p in pt)
+
+
+def _calculate_tolerance(numbers):
+    min_sig_figs = math.inf
+    max_sig_digit = -math.inf
+    for n in numbers:
+        min_sig_figs = min([min_sig_figs, _count_significant_figs(f"{n}")])
+        # max_sig_digit = max([max_sig_digit, float(f'{float(f"{n:.1g}"):g}')])
+        abs_n = math.fabs(n)
+        max_sig_digit = max([max_sig_digit, math.ceil(math.log10(abs_n if abs_n > 1e-08 else 1.0))])
+
+    min_sig_figs = max(14, min_sig_figs)
+    tolerance_power = min_sig_figs - max_sig_digit - 2
+    return 10 ** (-tolerance_power if tolerance_power > 0 else -8)
 
 
 def _connected_segments(curve):
     # Determine a tolerance for the curve to use in defining keys
-    min_sig_figs = math.inf
-    max_sig_digit = -math.inf
+    numbers = []
     for c in curve:
         for i in [0, 3]:
             for j in [0, 1]:
-                min_sig_figs = min([min_sig_figs, _count_significant_figs(f"{c[i][j]}")])
-                max_sig_digit = max([max_sig_digit, float(f'{float(f"{c[i][j]:.1g}"):g}')])
+                numbers.append(c[i][j])
 
-    tolerance_power = min_sig_figs - len(f"{math.fabs(max_sig_digit)}") - 2
-    key_tolerance = 10 ** (tolerance_power if tolerance_power > 0 else 8)
+    key_tolerance = 1 / _calculate_tolerance(numbers)
 
     begin_hash = {}
     for index, c in enumerate(curve):
         key = _create_key(c[0], key_tolerance)
         if key in begin_hash:
-            print("problem repeated key!", index, c)
+            logger.warning(f"Problem repeated key found while trying to connect segments! {index} - {c}")
         begin_hash[key] = index
 
     curve_size = len(curve)
@@ -402,13 +598,27 @@ def _connected_segments(curve):
             old_key = key
             key = _create_key(curve[s][3], key_tolerance)
             if old_key == key:
-                print("Breaking out of loop.")
+                logger.warning("Breaking out of loop in determining segments.")
                 break
-            # print(key)
 
         segments.append(seg)
 
     return segments
+
+
+def _collect_curves_into_segments(bezier_data):
+    collection_of_paths = {}
+    for group_name in bezier_data:
+        connected_paths = _connected_segments(bezier_data[group_name])
+
+        if len(connected_paths) > 1:
+            logger.warning("Two (or more) of the following points should have been detected as the same point.")
+            for connected_path in connected_paths:
+                logger.warning(f"{connected_path[0][0]} - {connected_path[-1][-1]}")
+
+        collection_of_paths[group_name] = connected_paths
+
+    return collection_of_paths
 
 
 def _write_connected_svg_bezier_path(bezier_path, group_name):
@@ -423,23 +633,23 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
 
             svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
     svg += f'" stroke="{stroke}" fill="none"'
-    svg += '/>' if group_name is None else f'><title>.centreline id({_group_svg_id(group_name)})</title></path>'
+    svg += '/>' if group_name is None else f'><title>.id({_group_svg_id(group_name)})</title></path>'
 
     return svg
 
 
-def _write_into_svg_format(bezier_data, markers):
-    svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
-    for group_name in bezier_data:
-        connected_paths = _connected_segments(bezier_data[group_name])
+def _write_svg_circle(point, identifier):
+    return f'<circle style="fill: rgb(216, 216, 216);" cx="{point[0]}" cy="{point[1]}" r="0.9054"><title>.id({identifier})</title></circle>'
 
-        if len(connected_paths) > 1:
-            print("---------")
-            print("Two of the following points should have been detected as the same point.")
-            for connected_path in connected_paths:
-                print(connected_path[0][0])
-                print(connected_path[-1][-1])
-        svg += _write_connected_svg_bezier_path(connected_paths, group_name=group_name if group_name != "ungrouped" else None)
+
+def _write_into_svg_format(connected_paths, markers, network_points):
+    svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
+    size_of_digits = len(f'{len(network_points)}')
+    for index, network_point in enumerate(network_points):
+        svg += _write_svg_circle(network_point, _define_point_title(index, size_of_digits))
+
+    for group_name, connected_path in connected_paths.items():
+        svg += _write_connected_svg_bezier_path(connected_path, group_name=group_name if group_name != "ungrouped" else None)
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]
@@ -456,7 +666,7 @@ def _write_into_svg_format(bezier_data, markers):
             svg += f'<title>.id({marker[0]})</title>'
             svg += '</circle>'
         except IndexError:
-            print("Invalid marker for export:", marker)
+            logger.warning(f"Invalid marker for export: {marker}")
 
     svg += '</svg>'
 
@@ -478,7 +688,7 @@ def _reverse_map_annotations(csv_reader):
 
 
 def _label_has_annotations(entry, annotation_map):
-    return entry in annotation_map and annotation_map[entry]
+    return entry in annotation_map and annotation_map[entry] and annotation_map[entry] != "None"
 
 
 def _is_annotation_csv_file(csv_reader):
