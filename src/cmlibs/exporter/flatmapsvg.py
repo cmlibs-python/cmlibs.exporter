@@ -3,10 +3,8 @@ Export an Argon document to source document(s) suitable for the generating
 flatmaps from.
 """
 import csv
-import functools
 import json
 import logging
-import operator
 
 import math
 import os
@@ -23,7 +21,6 @@ from cmlibs.exporter.base import BaseExporter
 from cmlibs.maths.vectorops import sub, div, add, magnitude
 from cmlibs.utils.zinc.field import get_group_list
 from cmlibs.utils.zinc.general import ChangeManager
-
 
 logger = logging.getLogger(__name__)
 
@@ -97,51 +94,21 @@ class ArgonSceneExporter(BaseExporter):
             graphics are included in the export.
         """
         region = scene.getRegion()
-        path_points, branching_points, svg_id_group_map = _analyze_elements(region, "coordinates")
+        path_points, svg_id_group_map = _analyze_elements(region, "coordinates")
         bezier = _calculate_bezier_control_points(path_points)
         markers = _calculate_markers(region, "coordinates")
         connected_segments = _collect_curves_into_segments(bezier)
-        end_point_data = {}
-        for group_name, connected_segment in connected_segments.items():
-            end_points = []
-            for c in connected_segment:
-                end_points.append((c[0][0], c[-1][3]))
-            svg_id = _group_svg_id(group_name)
-            end_point_data[svg_id_group_map[svg_id]] = end_points
-
+        end_point_data = _collate_end_points(connected_segments, svg_id_group_map)
         network_plan, network_points = _determine_network(region, end_point_data, "coordinates")
         svg_string = _write_into_svg_format(connected_segments, markers, network_points)
-        paths, attributes = svg2paths(svg_string)
-        bbox = [999999999, -999999999, 999999999, -999999999]
-        for p in paths:
-            path_bbox = p.bbox()
-            bbox[0] = min(path_bbox[0], bbox[0])
-            bbox[1] = max(path_bbox[1], bbox[1])
-            bbox[2] = min(path_bbox[2], bbox[2])
-            bbox[3] = max(path_bbox[3], bbox[3])
 
-        view_margin = 10
-        view_box = (int(bbox[0] + 0.5) - view_margin,
-                    int(bbox[2] + 0.5) - view_margin,
-                    int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
-                    int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
-
+        view_box = _calculate_view_box(svg_string)
         svg_string = svg_string.replace('viewBox="WWW XXX YYY ZZZ"', f'viewBox="{view_box[0]} {view_box[1]} {view_box[2]} {view_box[3]}"')
 
         svg_string = parseString(svg_string).toprettyxml()
 
-        reversed_map = None
-        if self._annotations_csv_file is not None:
-            with open(self._annotations_csv_file) as fh:
-                result = csv.reader(fh)
-
-                is_annotation_csv_file = _is_annotation_csv_file(result)
-
-                if is_annotation_csv_file:
-                    fh.seek(0)
-                    reversed_map = _reverse_map_annotations(result)
-
-        networks = [_create_vagus_network(network_plan, {v: k for k, v in svg_id_group_map.items()}, reversed_map)]
+        reversed_annotations_map = self._read_reversed_annotations_map()
+        networks = [_create_vagus_network(network_plan, {v: k for k, v in svg_id_group_map.items()}, reversed_annotations_map)]
 
         features = {}
         for marker in markers:
@@ -164,6 +131,20 @@ class ArgonSceneExporter(BaseExporter):
 
     def set_annotations_csv_file(self, filename):
         self._annotations_csv_file = filename
+
+    def _read_reversed_annotations_map(self):
+        reversed_map = None
+        if self._annotations_csv_file is not None:
+            with open(self._annotations_csv_file) as fh:
+                result = csv.reader(fh)
+
+                is_annotation_csv_file = _is_annotation_csv_file(result)
+
+                if is_annotation_csv_file:
+                    fh.seek(0)
+                    reversed_map = _reverse_map_annotations(result)
+
+        return reversed_map
 
 
 def _calculate_markers(region, coordinate_field_name):
@@ -230,9 +211,7 @@ def _define_point_title(index, size_of_digits):
 def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
     mesh = fm.findMeshByDimension(3)
-    node_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
-    fc = fm.createFieldcache()
 
     if mesh is None:
         return []
@@ -245,7 +224,6 @@ def _analyze_elements(region, coordinate_field_name):
         "ungrouped": []
     }
     svg_id_group_map = {}
-    # grouped_element_info = {}
 
     size_of_digits = len(f'{len(group_list)}')
     for group_index, group in enumerate(group_list):
@@ -258,9 +236,6 @@ def _analyze_elements(region, coordinate_field_name):
 
     with ChangeManager(fm):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
-
-        element_node_map, node_element_map = _build_group_node_element_maps(mesh, coordinates)
-        branching_elements = [element_id for element_id, node_ids in element_node_map.items() if len(node_ids) == 3]
 
         el_iterator = mesh.createElementiterator()
         element = el_iterator.next()
@@ -292,16 +267,24 @@ def _analyze_elements(region, coordinate_field_name):
         del mesh_group
         del group
 
-        branching_points = []
-        for branch_element_id in branching_elements:
-            branch_element = mesh.findElementByIdentifier(branch_element_id)
-            values_1 = _evaluate_field_data(branch_element, [0, 0.5, 0.5], coordinates)
-            branching_points.append(values_1)
+    return grouped_path_points, svg_id_group_map
 
-    print(branching_elements)
-    print(branching_points)
 
-    return grouped_path_points, branching_points, svg_id_group_map
+def _calculate_view_box(svg_string):
+    paths, attributes = svg2paths(svg_string)
+    bbox = [999999999, -999999999, 999999999, -999999999]
+    for p in paths:
+        path_bbox = p.bbox()
+        bbox[0] = min(path_bbox[0], bbox[0])
+        bbox[1] = max(path_bbox[1], bbox[1])
+        bbox[2] = min(path_bbox[2], bbox[2])
+        bbox[3] = max(path_bbox[3], bbox[3])
+
+    view_margin = 10
+    return (int(bbox[0] + 0.5) - view_margin,
+            int(bbox[2] + 0.5) - view_margin,
+            int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
+            int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
 
 
 def _determine_network(region, end_point_data, coordinate_field_name):
@@ -316,7 +299,6 @@ def _determine_network(region, end_point_data, coordinate_field_name):
     # find_mesh_location_field.setSearchMode(FieldFindMeshLocation.SEARCH_MODE_EXACT)
     find_mesh_location_field.setSearchMode(FieldFindMeshLocation.SEARCH_MODE_NEAREST)
     # data_point_coordinate_field = fm.createFieldFiniteElement(3)
-    data_point_coordinate_field = coordinates
     fc = fm.createFieldcache()
 
     if mesh is None:
@@ -327,6 +309,10 @@ def _determine_network(region, end_point_data, coordinate_field_name):
 
     group_list = get_group_list(fm)
 
+    # Map the 3D element groups to 1D elements with the same identifier.
+    # This relies on the fact that the 3D elements are built from the
+    # underlying 1D elements and that their is an exact 1-to-1 match
+    # between identifiers.
     group_1d_group_map = {}
     for group in group_list:
         group_1d_group_map[group.getName()] = None
@@ -345,7 +331,6 @@ def _determine_network(region, end_point_data, coordinate_field_name):
                 group_element_ids.append(group_element.getIdentifier())
                 group_element = group_iterator.next()
 
-            # print(field_group_1d.getName(), mesh_1d_group.getSize())
     # with ChangeManager(fm):
     #     node_template = data_point_set.createNodetemplate()
     #     node_template.defineField(data_point_coordinate_field)
@@ -362,8 +347,7 @@ def _determine_network(region, end_point_data, coordinate_field_name):
         network_points_1.extend([end_points[0][0], end_points[0][1]])
         start_coordinate[:2] = end_points[0][0]
         end_coordinate[:2] = end_points[0][1]
-        # print("Looking at group:", group_name, "Assigning coordinates:", start_coordinate)
-        # print(data_point_coordinate_field.assignReal(fc, start_coordinate))
+
         group_1d = group_1d_group_map[group_name]
         if group_1d is not None:
             mesh_group = group_1d.getMeshGroup(mesh_1d)
@@ -371,7 +355,6 @@ def _determine_network(region, end_point_data, coordinate_field_name):
             fc.setFieldReal(coordinates, end_coordinate)
             mesh_location = find_mesh_location_field.evaluateMeshLocation(fc, 1)
             fc.setMeshLocation(mesh_location[0], mesh_location[1])
-            # print(vagus_coordinates.evaluateReal(fc, 3))
             end_value[group_name] = vagus_coordinates.evaluateReal(fc, 3)[1]
             fc.setFieldReal(coordinates, start_coordinate)
             mesh_location = find_mesh_location_field.evaluateMeshLocation(fc, 1)
@@ -386,11 +369,9 @@ def _determine_network(region, end_point_data, coordinate_field_name):
                 if mesh_group.getSize() and group_name != group.getName():
 
                     find_mesh_location_field.setSearchMesh(mesh_group)
-                    # fc.setNode(datapoint)
                     fc.setFieldReal(coordinates, start_coordinate)
                     mesh_location = find_mesh_location_field.evaluateMeshLocation(fc, 1)
                     if mesh_location[0].isValid():
-                        # print(f"Found something: '{group.getName()}', Element: {mesh_location[0].getIdentifier()}, xi: {mesh_location[1]}")
                         fc.setMeshLocation(mesh_location[0], mesh_location[1])
                         result_1, values = coordinates.evaluateReal(fc, 3)
                         result_2, material_values = vagus_coordinates.evaluateReal(fc, 3)
@@ -399,14 +380,7 @@ def _determine_network(region, end_point_data, coordinate_field_name):
                             diff = magnitude(sub(start_coordinate, values))
                             if diff < tolerance and diff < min_value[group_name][0]:
                                 min_value[group_name] = [diff, group.getName(), material_values, values]
-                            # print(values, magnitude(sub(start_coordinate, values)), material_values, tolerance)
-                        # print(mesh_location[0].getIdentifier(), mesh_location[1])
-                        # print(data_point_coordinate_field.evaluateReal(fc, mesh_dimension))
-        #
-        # print(group.getName(), mesh_group.getSize())
-        # group_field = fm.findFieldByName(group_name).castGroup()
-        # mesh_group = group_field.getMeshGroup(mesh)
-        # print(mesh_group.getSize())
+
     network_points = {}
     for group_name, end_points in end_point_data.items():
         network_points[group_name] = network_points.get(group_name, [(0.0, end_points[0][0]), (1.0, end_points[0][1])])
@@ -436,10 +410,6 @@ def _determine_network(region, end_point_data, coordinate_field_name):
     for index, pt in enumerate(points):
         key = _create_key(pt, key_tolerance)
         begin_hash[key] = begin_hash.get(key, index)
-        # if key in begin_hash:
-        #     print("problem repeated key!", begin_hash[key], index, pt)
-        # else:
-        #     begin_hash[key] = index
 
     network_points_2 = []
     index_map = {}
@@ -466,6 +436,17 @@ def _determine_network(region, end_point_data, coordinate_field_name):
     return final_network, final_network_points
 
 
+def _collate_end_points(connected_segments, svg_id_group_map):
+    end_point_data = {}
+    for group_name, connected_segment in connected_segments.items():
+        end_points = []
+        for c in connected_segment:
+            end_points.append((c[0][0], c[-1][3]))
+        svg_id = _group_svg_id(group_name)
+        end_point_data[svg_id_group_map[svg_id]] = end_points
+    return end_point_data
+
+
 def _create_plan(label, plan_data, group_svg_id_map, annotations_map):
     plan = {
         "id": group_svg_id_map[label],
@@ -488,30 +469,6 @@ def _create_vagus_network(network_plan, group_svg_id_map, annotations_map):
         "type": "nerve",
         "centrelines": _create_network_centrelines(network_plan, group_svg_id_map, annotations_map)
     }
-
-
-def _build_group_node_element_maps(mesh_group, coordinates):
-    element_node_ids = {}
-    node_element_ids = {}
-    # print("Element node tree:")
-    elem_iter = mesh_group.createElementiterator()
-    element = elem_iter.next()
-    while element.isValid():
-        eft = element.getElementfieldtemplate(coordinates, -1)  # since all the same
-        element_id = element.getIdentifier()
-        node_ids = []
-        for ln in range(1, eft.getNumberOfLocalNodes() + 1):
-            node = element.getNode(eft, ln)
-            node_id = node.getIdentifier()
-            node_ids.append(node_id)
-            node_element_ids[node_id] = node_element_ids.get(node_id, [])
-            node_element_ids[node_id].append(element_id)
-
-        # print(f"{element_id} - {node_ids}")
-        element_node_ids[element_id] = node_ids
-        element = elem_iter.next()
-
-    return element_node_ids, node_element_ids
 
 
 def _evaluate_field_data(element, xi, data_field):
@@ -641,9 +598,8 @@ def _connected_segments(curve):
             old_key = key
             key = _create_key(curve[s][3], key_tolerance)
             if old_key == key:
-                print("Breaking out of loop.")
+                logger.warning("Breaking out of loop in determining segments.")
                 break
-            # print(key)
 
         segments.append(seg)
 
@@ -710,7 +666,7 @@ def _write_into_svg_format(connected_paths, markers, network_points):
             svg += f'<title>.id({marker[0]})</title>'
             svg += '</circle>'
         except IndexError:
-            print("Invalid marker for export:", marker)
+            logger.warning(f"Invalid marker for export: {marker}")
 
     svg += '</svg>'
 
