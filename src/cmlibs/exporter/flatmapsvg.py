@@ -148,46 +148,44 @@ class ArgonSceneExporter(BaseExporter):
 
 
 def _calculate_markers(region, coordinate_field_name):
-    probable_group_names = ['marker', 'markers']
     fm = region.getFieldmodule()
-    coordinate_field = fm.findFieldByName('marker_data_coordinates').castFiniteElement()
-    name_field = fm.findFieldByName('marker_data_name')
-    id_field = fm.findFieldByName('marker_data_id')
+    with ChangeManager(fm):
+        coordinate_field = fm.findFieldByName(coordinate_field_name).castFiniteElement()
+        name_field = fm.findFieldByName('marker_name')
+        location_field = fm.findFieldByName('marker_location')
+        annotation_field = fm.findFieldByName('marker_annotation')
 
-    markers_group = Field()
-    for probable_group_name in probable_group_names:
-        markers_group = fm.findFieldByName(probable_group_name)
+        marker_coordinate_field = fm.createFieldEmbedded(coordinate_field, location_field)
+
+        markers_group = fm.findFieldByName("marker").castGroup()
+
+        marker_data = []
         if markers_group.isValid():
-            break
+            marker_node_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
+            marker_points = markers_group.getNodesetGroup(marker_node_set)
+            marker_iterator = marker_points.createNodeiterator()
+            components_count = marker_coordinate_field.getNumberOfComponents()
 
-    marker_data = []
-    if markers_group.isValid():
-        markers_group = markers_group.castGroup()
-        marker_node_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_DATAPOINTS)
-        marker_datapoints = markers_group.getNodesetGroup(marker_node_set)
-        marker_iterator = marker_datapoints.createNodeiterator()
-        components_count = coordinate_field.getNumberOfComponents()
-
-        marker = marker_iterator.next()
-        fc = fm.createFieldcache()
-
-        i = 0
-        while marker.isValid():
-            fc.setNode(marker)
-            result, values = coordinate_field.evaluateReal(fc, components_count)
-            if name_field.isValid():
-                name = name_field.evaluateString(fc)
-            else:
-                name = f"Unnamed marker {i + 1}"
-
-            if id_field.isValid():
-                onto_id = id_field.evaluateString(fc)
-            else:
-                rand_num = random.randint(1, 99999)
-                onto_id = f"UBERON:99{rand_num:0=5}"
-            marker_data.append((f"marker_{marker.getIdentifier()}", values[:2], name, onto_id))
             marker = marker_iterator.next()
-            i += 1
+            fc = fm.createFieldcache()
+
+            i = 0
+            while marker.isValid():
+                fc.setNode(marker)
+                result, values = marker_coordinate_field.evaluateReal(fc, components_count)
+                if name_field.isValid():
+                    name = name_field.evaluateString(fc)
+                else:
+                    name = f"Unnamed marker {i + 1}"
+
+                if annotation_field.isValid():
+                    onto_id = annotation_field.evaluateString(fc)
+                else:
+                    rand_num = random.randint(1, 99999)
+                    onto_id = f"UBERON:99{rand_num:0=5}"
+                marker_data.append((f"marker_{marker.getIdentifier()}", values[:2], name, onto_id))
+                marker = marker_iterator.next()
+                i += 1
 
     return marker_data
 
@@ -629,9 +627,9 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
         m_space = '' if i == 0 else ' '
         for j, b in enumerate(bezier_section):
             if j == 0:
-                svg += f'{m_space}M {b[0][0]} {b[0][1]}'
+                svg += f'{m_space}M {b[0][0]} {-b[0][1]}'
 
-            svg += f' C {b[1][0]} {b[1][1]}, {b[2][0]} {b[2][1]}, {b[3][0]} {b[3][1]}'
+            svg += f' C {b[1][0]} {-b[1][1]}, {b[2][0]} {-b[2][1]}, {b[3][0]} {-b[3][1]}'
     svg += f'" stroke="{stroke}" fill="none"'
     svg += '/>' if group_name is None else f'><title>.id({_group_svg_id(group_name)})</title></path>'
 
@@ -639,7 +637,7 @@ def _write_connected_svg_bezier_path(bezier_path, group_name):
 
 
 def _write_svg_circle(point, identifier):
-    return f'<circle style="fill: rgb(216, 216, 216);" cx="{point[0]}" cy="{point[1]}" r="0.9054"><title>.id({identifier})</title></circle>'
+    return f'<circle style="fill: rgb(216, 216, 216);" cx="{point[0]}" cy="{-point[1]}" r="0.9054"><title>.id({identifier})</title></circle>'
 
 
 def _write_into_svg_format(connected_paths, markers, network_points):
@@ -662,7 +660,7 @@ def _write_into_svg_format(connected_paths, markers, network_points):
 
     for marker in markers:
         try:
-            svg += f'<circle cx="{marker[1][0]}" cy="{marker[1][1]}" r="3" fill-opacity="0.0">'
+            svg += f'<circle cx="{marker[1][0]}" cy="{-marker[1][1]}" r="1" fill="none">'
             svg += f'<title>.id({marker[0]})</title>'
             svg += '</circle>'
         except IndexError:
