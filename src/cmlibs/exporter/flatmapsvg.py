@@ -20,6 +20,7 @@ from cmlibs.zinc.result import RESULT_OK
 from cmlibs.exporter.base import BaseExporter
 from cmlibs.maths.vectorops import sub, div, add, magnitude
 from cmlibs.utils.zinc.field import get_group_list
+from cmlibs.utils.zinc.finiteelement import get_highest_dimension_mesh
 from cmlibs.utils.zinc.general import ChangeManager
 
 logger = logging.getLogger(__name__)
@@ -206,9 +207,15 @@ def _define_point_title(index, size_of_digits):
     return f"point_{_group_number(index, size_of_digits)}"
 
 
+def _create_xi_array(size, location):
+    xi = [0.5] * size
+    xi[0] = location
+    return xi
+
+
 def _analyze_elements(region, coordinate_field_name):
     fm = region.getFieldmodule()
-    mesh = fm.findMeshByDimension(3)
+    mesh = get_highest_dimension_mesh(fm)
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
 
     if mesh is None:
@@ -238,10 +245,13 @@ def _analyze_elements(region, coordinate_field_name):
         el_iterator = mesh.createElementiterator()
         element = el_iterator.next()
         while element.isValid():
-            values_1 = _evaluate_field_data(element, [0, 0.5, 0.5], coordinates)
-            values_2 = _evaluate_field_data(element, [1, 0.5, 0.5], coordinates)
-            derivatives_1 = _evaluate_field_data(element, [0, 0.5, 0.5], xi_1_derivative)
-            derivatives_2 = _evaluate_field_data(element, [1, 0.5, 0.5], xi_1_derivative)
+
+            xi_start = _create_xi_array(element.getDimension(), 0.0)
+            xi_end = _create_xi_array(element.getDimension(), 1.0)
+            values_1 = _evaluate_field_data(element, xi_start, coordinates)
+            values_2 = _evaluate_field_data(element, xi_end, coordinates)
+            derivatives_1 = _evaluate_field_data(element, xi_start, xi_1_derivative)
+            derivatives_2 = _evaluate_field_data(element, xi_end, xi_1_derivative)
 
             line_path_points = None
             if values_1 and values_2 and derivatives_1 and derivatives_2:
