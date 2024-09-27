@@ -256,14 +256,14 @@ def _analyze_elements(region, coordinate_field_name):
                         grouped_path_points[group_label].append(line_path_points)
                         in_group = True
 
+                    del mesh_group
+
                 if not in_group:
                     grouped_path_points["ungrouped"].append(line_path_points)
 
             element = el_iterator.next()
 
         del xi_1_derivative
-        del mesh_group
-        del group
 
     return grouped_path_points, svg_id_group_map
 
