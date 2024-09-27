@@ -296,9 +296,8 @@ def _calculate_view_box(svg_string):
 
 
 def _determine_network(region, end_point_data, coordinate_field_name):
-    mesh_dimension = 3
     fm = region.getFieldmodule()
-    mesh = fm.findMeshByDimension(mesh_dimension)
+    mesh = get_highest_dimension_mesh(fm)
     mesh_1d = fm.findMeshByDimension(1)
     # data_point_set = fm.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
@@ -310,10 +309,10 @@ def _determine_network(region, end_point_data, coordinate_field_name):
     fc = fm.createFieldcache()
 
     if mesh is None:
-        return []
+        return [], []
 
     if mesh.getSize() == 0:
-        return []
+        return [], []
 
     group_list = get_group_list(fm)
 
@@ -356,7 +355,7 @@ def _determine_network(region, end_point_data, coordinate_field_name):
         start_coordinate[:2] = end_points[0][0]
         end_coordinate[:2] = end_points[0][1]
 
-        group_1d = group_1d_group_map[group_name]
+        group_1d = group_1d_group_map.get(group_name, None)
         if group_1d is not None:
             mesh_group = group_1d.getMeshGroup(mesh_1d)
             find_mesh_location_field.setSearchMesh(mesh_group)
@@ -451,13 +450,13 @@ def _collate_end_points(connected_segments, svg_id_group_map):
         for c in connected_segment:
             end_points.append((c[0][0], c[-1][3]))
         svg_id = _group_svg_id(group_name)
-        end_point_data[svg_id_group_map[svg_id]] = end_points
+        end_point_data[svg_id_group_map.get(svg_id, "ungrouped")] = end_points
     return end_point_data
 
 
 def _create_plan(label, plan_data, group_svg_id_map, annotations_map):
     plan = {
-        "id": group_svg_id_map[label],
+        "id": group_svg_id_map.get(label, "ungrouped"),
         "label": label,
         "connects": plan_data,
     }
