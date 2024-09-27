@@ -14,7 +14,7 @@ from decimal import Decimal
 from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
 
-from cmlibs.zinc.field import Field, FieldGroup, FieldFindMeshLocation
+from cmlibs.zinc.field import Field, FieldFindMeshLocation
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
