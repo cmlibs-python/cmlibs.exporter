@@ -219,10 +219,12 @@ def _analyze_elements(region, coordinate_field_name):
     coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
 
     if mesh is None:
-        return []
+        logger.warning(f"No mesh found in region: {region.getName()}.")
+        return {}, {}
 
     if mesh.getSize() == 0:
-        return []
+        logger.warning(f"Mesh found in region '{region.getName()}' is empty.")
+        return {}, {}
 
     group_list = get_group_list(fm)
     grouped_path_points = {
@@ -309,10 +311,10 @@ def _determine_network(region, end_point_data, coordinate_field_name):
     fc = fm.createFieldcache()
 
     if mesh is None:
-        return [], []
+        return {}, []
 
     if mesh.getSize() == 0:
-        return [], []
+        return {}, []
 
     group_list = get_group_list(fm)
 
