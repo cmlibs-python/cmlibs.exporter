@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from cmlibs.zinc.context import Context
 
 from cmlibs.exporter import flatmapsvg
-from cmlibs.exporter.flatmapsvg import _connected_segments
+from cmlibs.exporter.flatmapsvg import _connected_segments, _write_into_svg_format, _calculate_view_box
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -36,16 +36,35 @@ class Exporter(unittest.TestCase):
         tree = ET.parse(flatmap_svg_file)
         root = tree.getroot()
 
-        self.assertEqual(18, len(root))
+        self.assertEqual(20, len(root))
 
         with open(properties_file) as f:
             content = json.load(f)
 
-        self.assertIn("features", content)
-        self.assertEqual(18, len(content["features"]))
+        self.assertIn("networks", content)
+        self.assertEqual(1, len(content["networks"]))
+        self.assertEqual(3, len(content["networks"][0]))
 
         os.remove(flatmap_svg_file)
         os.remove(properties_file)
+
+    def test_write_svg_outline(self):
+        values = {'wave': [
+            [([-10.0, 0.0], [-7.5, 2.5], [-2.5, 2.5], [0.0, 0.0]),
+             ([0.0, 0.0], [2.5, -2.5], [7.5, -2.5], [10.0, 0.0])]]
+        }
+        svg_string = _write_into_svg_format(values, [], [])
+        self.assertTrue(len(svg_string) > 0)
+
+        view_box = _calculate_view_box(svg_string)
+
+        svg_string = svg_string.replace('viewBox="WWW XXX YYY ZZZ"', f'viewBox="{view_box[0]} {view_box[1]} {view_box[2]} {view_box[3]}"')
+
+        simple_svg_file = _resource_path("simple.svg")
+        with open(simple_svg_file, "w") as fh:
+            fh.write(svg_string)
+
+        os.remove(simple_svg_file)
 
 
 class FindConnectedSet(unittest.TestCase):
@@ -88,7 +107,6 @@ class FindConnectedSet(unittest.TestCase):
         self.assertEqual(2, len(_connected_segments(c2)))
         segmented_c3 = _connected_segments(c3)
         self.assertEqual(2, len(segmented_c3))
-        print(segmented_c3)
         self.assertEqual(p2, segmented_c3[0][0][0])
 
     def test_real_data_single_section(self):

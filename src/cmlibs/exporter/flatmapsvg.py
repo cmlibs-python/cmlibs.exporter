@@ -18,7 +18,7 @@ from cmlibs.zinc.field import Field, FieldFindMeshLocation
 from cmlibs.zinc.result import RESULT_OK
 
 from cmlibs.exporter.base import BaseExporter
-from cmlibs.maths.vectorops import sub, div, add, magnitude
+from cmlibs.maths.vectorops import sub, div, add, magnitude, normalize, dot, mult
 from cmlibs.utils.zinc.field import get_group_list
 from cmlibs.utils.zinc.finiteelement import get_highest_dimension_mesh
 from cmlibs.utils.zinc.general import ChangeManager
@@ -37,6 +37,8 @@ SVG_COLOURS = [
     "lightcyan", "lightgolden", "rodyellow", "lightgray", "lightgreen", "lightgrey", "lightpink",
     "lightsalmon", "lightseagreen",
 ]
+
+SVG_OPENING_ELEMENT = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
 
 
 class ArgonSceneExporter(BaseExporter):
@@ -102,8 +104,15 @@ class ArgonSceneExporter(BaseExporter):
         end_point_data = _collate_end_points(connected_segments, svg_id_group_map)
         network_plan, network_points = _determine_network(region, end_point_data, "coordinates")
         svg_string = _write_into_svg_format(connected_segments, markers, network_points)
-
         view_box = _calculate_view_box(svg_string)
+
+        boundaries = _calculate_cervical_thoracic_boundaries(markers)
+        if boundaries is None:
+            region_features = None
+        else:
+            svg_background_regions, region_features = _define_background_regions(boundaries, view_box)
+            svg_string = svg_string.replace(SVG_OPENING_ELEMENT, f'{SVG_OPENING_ELEMENT}{svg_background_regions}')
+
         svg_string = svg_string.replace('viewBox="WWW XXX YYY ZZZ"', f'viewBox="{view_box[0]} {view_box[1]} {view_box[2]} {view_box[3]}"')
 
         svg_string = parseString(svg_string).toprettyxml()
@@ -119,6 +128,9 @@ class ArgonSceneExporter(BaseExporter):
                 "colour": "orange"
             }
             features[marker[0]] = feature
+
+        if region_features is not None:
+            features.update(region_features)
 
         properties = {"networks": networks}
         if features:
@@ -630,8 +642,94 @@ def _collect_curves_into_segments(bezier_data):
     return collection_of_paths
 
 
-def _write_connected_svg_bezier_path(bezier_path, group_name):
-    stroke = "grey" if group_name is None else "#01136e"
+def _calculate_section_control_vectors(b, normals=False):
+    u1 = sub(b[1], b[0])
+    u2 = mult(sub(b[2], b[3]), -1)
+    v = sub(b[3], b[0])
+    proj_len = dot(u1, v) / magnitude(v) ** 2
+    if proj_len < 0:
+        u1 = mult(u1, -1)
+    proj_len = dot(u2, v) / magnitude(v) ** 2
+    if proj_len < 0:
+        u2 = mult(u2, -1)
+
+    n1 = normalize(u1)
+    n2 = normalize(u2)
+    return n1, n2
+
+
+def _expand_bezier_path_to_outline(bezier_path, group_name):
+    offset = 2
+
+    offset_bezier_paths = []
+    for i, bezier_section in enumerate(bezier_path):
+        control_vectors = [_calculate_section_control_vectors(b) for b in bezier_section]
+        control_normals = [[[v[0][1], -v[0][0]], [v[1][1], -v[1][0]]] for v in control_vectors]
+        offset_section = []
+        reverse_offset_section = []
+        total_control_vectors = len(control_vectors)
+        for j, control_vector in enumerate(control_vectors):
+            b1 = bezier_section[j]
+            if j < total_control_vectors - 1:
+                n1 = control_normals[j][1]
+                n2 = control_normals[j + 1][0]
+                mag = magnitude(sub(n2, n1))
+                if mag > 1e-12:
+                    reference_pt = b1[3]
+                    pt1 = add(reference_pt, mult(n1, offset))
+                    pt2 = add(reference_pt, mult(n2, offset))
+                    c = dot(n1, pt1)
+                    f = dot(n2, pt2)
+                    det = n1[0]*n2[1] - n1[1]*n2[0]
+                    if math.fabs(det) < 1e-12:
+                        print("Problem with calculating intersection point. Lines are virtually parallel?", det)
+                        print(n1, n2, c, f)
+                        joint_normal = n1
+                    else:
+                        int_pt = [(c*n2[1] - n1[1]*f) / det, (n1[0]*f - c*n2[0]) / det]
+                        joint_normal = normalize(sub(int_pt, reference_pt))
+
+                    control_normals[j][1] = joint_normal
+                    control_normals[j + 1][0] = [joint_normal[1], -joint_normal[0]]
+
+            offset_section.append(_create_offset_section(b1, control_normals, j, offset))
+            reverse_offset_section.append(_create_offset_section(b1, control_normals, j, offset, forward=False))
+
+        reverse_offset_section.reverse()
+        joining_section_1 = _create_joining_section(offset_section, reverse_offset_section)
+        joining_section_2 = _create_joining_section(reverse_offset_section, offset_section)
+
+        stroke_section = offset_section + joining_section_1 + reverse_offset_section + joining_section_2
+        offset_bezier_paths.append(stroke_section)
+        # offset_bezier_paths.append(offset_section)
+        # offset_bezier_paths.append(joining_section_1)
+        # offset_bezier_paths.append(reverse_offset_section)
+        # offset_bezier_paths.append(joining_section_2)
+
+    return offset_bezier_paths
+
+
+def _create_offset_section(b1, control_normals, j, offset, forward=True):
+    disp1 = mult(control_normals[j][0], offset)
+    disp2 = mult(control_normals[j][1], offset)
+    if forward:
+        data = [add(b1[0], disp1), add(b1[1], disp1), add(b1[2], disp2), add(b1[3], disp2)]
+    else:
+        data = [sub(b1[3], disp2), sub(b1[2], disp2), sub(b1[1], disp1), sub(b1[0], disp1)]
+    return data
+
+
+def _create_joining_section(offset_section, reverse_offset_section):
+    v1 = sub(offset_section[-1][2], offset_section[-1][3])
+    j1 = add(offset_section[-1][3], mult(v1, -1))
+    v2 = sub(reverse_offset_section[0][1], reverse_offset_section[0][0])
+    j2 = add(reverse_offset_section[0][0], mult(v2, -1))
+    joining_section_1 = [[offset_section[-1][3], j1, j2, reverse_offset_section[0][0]]]
+    return joining_section_1
+
+
+def _write_connected_svg_bezier_path(bezier_path, group_name, outline=False):
+    stroke = "grey" if group_name is None else "#e28343" if outline else "#01136e"
 
     svg = '<path d="'
     for i, bezier_section in enumerate(bezier_path):
@@ -652,13 +750,16 @@ def _write_svg_circle(point, identifier):
 
 
 def _write_into_svg_format(connected_paths, markers, network_points):
-    svg = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
+    svg = SVG_OPENING_ELEMENT
+
     size_of_digits = len(f'{len(network_points)}')
     for index, network_point in enumerate(network_points):
         svg += _write_svg_circle(network_point, _define_point_title(index, size_of_digits))
 
     for group_name, connected_path in connected_paths.items():
+        offset_paths = _expand_bezier_path_to_outline(connected_path, group_name if group_name != "ungrouped" else None)
         svg += _write_connected_svg_bezier_path(connected_path, group_name=group_name if group_name != "ungrouped" else None)
+        svg += _write_connected_svg_bezier_path(offset_paths, group_name=f"{group_name}_outline" if group_name != "ungrouped" else None, outline=True)
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]
@@ -671,7 +772,7 @@ def _write_into_svg_format(connected_paths, markers, network_points):
 
     for marker in markers:
         try:
-            svg += f'<circle cx="{marker[1][0]}" cy="{-marker[1][1]}" r="1" fill="none">'
+            svg += f'<circle cx="{marker[1][0]}" cy="{-marker[1][1]}" r="1" fill="orange">'
             svg += f'<title>.id({marker[0]})</title>'
             svg += '</circle>'
         except IndexError:
@@ -680,6 +781,74 @@ def _write_into_svg_format(connected_paths, markers, network_points):
     svg += '</svg>'
 
     return svg
+
+
+def _calculate_cervical_thoracic_boundaries(markers):
+    """
+    From the markers determine the cervical and thoracic boundary.
+    We flip the final value to match the flipping done in calculating
+    the 'upright' vagus position.
+    Returns None if the markers used in the calculation are not found.
+
+    :param markers: A list of markers from which to determine the regions.
+
+    :return: The cervical thoracic boundary in SVG image units.
+    """
+    reference_labels = ["greater horn", "jugular notch", "sternal angle"]
+    reference_points = {}
+    for m in markers:
+        find_results = [m[2].find(r) for r in reference_labels]
+        res = [idx for idx, val in enumerate(find_results) if val >= 0]
+        if len(res):
+            reference_points[reference_labels[res[0]]] = m[1][1]
+
+    if reference_labels[1] not in reference_points and reference_labels[2] not in reference_points:
+        return None
+
+    size_of_thoracic_vertebrae = (reference_points[reference_labels[1]] - reference_points[reference_labels[2]]) / 2
+    cervical_thoracic_boundary = reference_points[reference_labels[1]] + 2 * size_of_thoracic_vertebrae
+    # We use eight here so that we get to the superior surface of the C1 (Atlas) vertebrae, all
+    # other measurements are to the posterior surface of the vertebrae.
+    cervical_boundaries = [-cervical_thoracic_boundary - size_of_thoracic_vertebrae * i * 0.75 for i in range(8)]
+    cervical_boundaries.reverse()
+    thoracic_boundaries = [-cervical_thoracic_boundary + size_of_thoracic_vertebrae * (i + 1) for i in range(12)]
+
+    return [cervical_boundaries, thoracic_boundaries]
+
+
+def _define_background_regions(boundaries, view_box):
+    # Because we calculate eight cervical vertebrae to get to the superior
+    # surface of C1 (Atlas), we need the eighth cervical boundary to find
+    # the posterior surface of C7.
+    boundary = boundaries[0][7]
+    min_x = view_box[0]
+    min_y = view_box[1]
+    width = view_box[2]
+    height = view_box[3]
+    max_y = min_y + height
+    ratio_brain = 1.0 + (boundaries[0][0] - max_y) / height
+    ratio_cervical = 1.0 + (boundary - max_y) / height
+    ratio_thoracic = 1.0 + (boundaries[1][11] - max_y) / height
+    # print(ratio_brain, ratio_cervical, ratio_thoracic, min_y, max_y)
+    brain_height = int(height * ratio_brain + 0.5)
+    cervical_height = int(height * ratio_cervical + 0.5) - brain_height
+    thoracic_height = int(height * ratio_thoracic + 0.5) - cervical_height - brain_height
+    lumbar_height = thoracic_height - cervical_height - brain_height
+    cervical_min_y = min_y + brain_height
+    thoracic_min_y = cervical_min_y + cervical_height
+    lumbar_min_y = thoracic_min_y + thoracic_height
+    brain_rect = f'<rect x="{min_x}" y="{min_y}" width="{width}" height="{brain_height}" fill="red"><title>.id(brain_region)</title></rect>'
+    cervical_rect = f'<rect x="{min_x}" y="{cervical_min_y}" width="{width}" height="{cervical_height}" fill="green"><title>.id(cervical_region)</title></rect>'
+    thoracic_rect = f'<rect x="{min_x}" y="{thoracic_min_y}" width="{width}" height="{thoracic_height}" fill="grey"><title>.id(thoracic_region)</title></rect>'
+    lumbar_rect = f'<rect x="{min_x}" y="{lumbar_min_y}" width="{width}" height="{lumbar_height}" fill="blue"><title>.id(lumbar_region)</title></rect>'
+    features = {
+        "brain_region": {"name": "Brain"},
+        "cervical_region": {"name": "Cervical C1-C7"},
+        "thoracic_region": {"name": "Thoracic T1-T12"},
+        "lumbar_region": {"name": "Lumbar L1-"}
+    }
+
+    return f'{brain_rect}{cervical_rect}{thoracic_rect}{lumbar_rect}', features
 
 
 def _reverse_map_annotations(csv_reader):
