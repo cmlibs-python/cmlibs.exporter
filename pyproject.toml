@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools_scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools-git-versioning]
+enabled = true
+
+[project]
+name = "cmlibs.exporter"
+dynamic = ["version"]
+keywords = ["Export", "CMLibs", "Zinc"]
+readme = "README.rst"
+license = "Apache-2.0"
+authors = [
+    { name="Hugh Sorby", email="h.sorby@auckland.ac.nz" },
+]
+dependencies = [
+    'cmlibs.argon >= 0.4.0',
+    'cmlibs.zinc',
+    'svgpathtools_light',
+]
+description = "Export CMLibs Zinc data to common mesh formats."
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+]
+
+[project.urls]
+Homepage = "https://cmlibs.org"
+Repository = "https://github.com/CMLibs-Python/cmlibs.exporter"
+
+[project.optional-dependencies]
+thumbnail_hardware = ["PySide6"]
+thumbnail_software = ["PyOpenGL"]
+
+[tool.setuptools_scm]
