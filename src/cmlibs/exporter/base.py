@@ -59,6 +59,16 @@ class BaseExporter(object):
     def export_from_scene(self, scene, scene_filter=None):
         raise NotImplementedError()
 
+    def is_valid(self, document=None):
+        """
+        Test to determine if the current exporter can export the
+        given document, or the current document if a document is not given.
+
+        :param document: Document to evaluate.
+        :return: True if the evaluated document can be exported, False otherwise.
+        """
+        raise NotImplementedError("The is_valid method has not been implemented for this exporter.")
+
     def load(self, filename):
         """
         Loads the named Argon file and on success sets filename as the current location.

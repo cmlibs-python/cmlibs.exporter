@@ -17,6 +17,7 @@ authors = [
 dependencies = [
     'cmlibs.argon >= 0.4.0',
     'cmlibs.zinc',
+    'exf2mbfxml',
     'svgpathtools_light',
 ]
 description = "Export CMLibs Zinc data to common mesh formats."

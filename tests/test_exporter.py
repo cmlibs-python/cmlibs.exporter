@@ -5,6 +5,7 @@ from cmlibs.exporter import thumbnail
 from cmlibs.exporter import vtk
 from cmlibs.exporter import stl
 from cmlibs.exporter import wavefront
+from cmlibs.exporter import mbfxml
 
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -75,3 +76,22 @@ class Exporter(unittest.TestCase):
         os.remove(wavefront_file)
         os.remove(cube_file)
         os.remove(sphere_file)
+
+    def test_mbfxml(self):
+        argon_document = _resource_path("simple-vessel-structure.neon")
+        output_target = _resource_path("")
+
+        exporter = mbfxml.ArgonSceneExporter(output_target=output_target)
+        exporter.load(argon_document)
+        exporter.export_mbfxml()
+        mbfxml_file = _resource_path("ArgonSceneExporterMBFXML.xml")
+        self.assertTrue(os.path.isfile(mbfxml_file))
+
+        os.remove(mbfxml_file)
+
+    def test_mbfxml_two_element_cube(self):
+        argon_document = _resource_path("two-cubes-lines.neon")
+
+        exporter = mbfxml.ArgonSceneExporter()
+        exporter.load(argon_document)
+        self.assertFalse(exporter.is_valid())
