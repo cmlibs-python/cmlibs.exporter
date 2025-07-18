@@ -6,6 +6,7 @@ import os.path
 from cmlibs.argon.argondocument import ArgonDocument
 from cmlibs.exporter.base import BaseExporter
 from cmlibs.exporter.errors import ExportVTKError
+from cmlibs.utils.zinc.field import find_coordinate_fields
 from cmlibs.utils.zinc.finiteelement import getElementNodeIdentifiersBasisOrder
 from cmlibs.zinc.field import Field
 from cmlibs.zinc.result import RESULT_OK
@@ -13,8 +14,6 @@ from cmlibs.zinc.result import RESULT_OK
 
 def _write(out_stream, region):
     field_module = region.getFieldmodule()
-    coordinates = field_module.findFieldByName('coordinates').castFiniteElement()
-    nodes = field_module.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
     mesh = None
     for dimension in range(3, 1, -1):
         mesh = field_module.findMeshByDimension(dimension)
@@ -26,6 +25,13 @@ def _write(out_stream, region):
 
     if mesh.getSize() == 0:
         return
+
+    potential_coordinates = find_coordinate_fields(region)
+    if len(potential_coordinates) == 0:
+        return
+
+    coordinates = potential_coordinates[0]
+    nodes = field_module.findNodesetByFieldDomainType(Field.DOMAIN_TYPE_NODES)
 
     out_stream.write('# vtk DataFile Version 2.0\n')
     out_stream.write('Export of CMLibs Zinc region.\n')
