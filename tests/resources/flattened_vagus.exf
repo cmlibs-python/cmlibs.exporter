@@ -440,11 +440,11 @@ Element: 45
 Define node template: node4
 Shape. Dimension=0
 #Fields=2
-1) marker_data_coordinates, coordinate, rectangular cartesian, real, #Components=3
+1) marker_coordinates, coordinate, rectangular cartesian, real, #Components=3
  x. #Values=1 (value)
  y. #Values=1 (value)
  z. #Values=1 (value)
-2) marker_data_name, field, string, #Components=1
+2) marker_name, field, string, #Components=1
  1. #Values=1 (value)
 Node template: node4
 Node: 1

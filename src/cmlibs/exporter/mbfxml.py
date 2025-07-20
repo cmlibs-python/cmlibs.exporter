@@ -44,9 +44,9 @@ class ArgonSceneExporter(BaseExporter):
         Supports 1D meshes where the elements all have the same element template with two nodes.
         """
         scene = self._document.getRootRegion().getZincRegion().getScene()
-        self.export_mbfxml_from_scene(scene)
+        self.export_from_scene(scene)
 
-    def export_mbfxml_from_scene(self, scene, scene_filter=None):
+    def export_from_scene(self, scene, scene_filter=None):
         """
         Export graphics from a Zinc Scene into MBF XML format.
 

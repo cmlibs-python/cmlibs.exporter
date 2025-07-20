@@ -6,7 +6,7 @@ from cmlibs.exporter import vtk
 from cmlibs.exporter import stl
 from cmlibs.exporter import wavefront
 from cmlibs.exporter import mbfxml
-
+from cmlibs.zinc.context import Context
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -95,3 +95,19 @@ class Exporter(unittest.TestCase):
         exporter = mbfxml.ArgonSceneExporter()
         exporter.load(argon_document)
         self.assertFalse(exporter.is_valid())
+
+    def test_mbfxml_vagus(self):
+        source_model = _resource_path("flattened_vagus.exf")
+        output_target = _resource_path("")
+
+        exporter = mbfxml.ArgonSceneExporter(output_target=output_target, output_prefix="vagus")
+
+        c = Context('generate_mbfxml')
+        root_region = c.getDefaultRegion()
+        root_region.readFile(source_model)
+
+        exporter.export_from_scene(root_region.getScene())
+        mbfxml_file = _resource_path("vagus.xml")
+        self.assertTrue(os.path.isfile(mbfxml_file))
+
+        os.remove(mbfxml_file)
