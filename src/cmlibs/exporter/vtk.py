@@ -159,10 +159,6 @@ class ArgonSceneExporter(BaseExporter):
             child = child.getNextSibling()
 
     def _vtk_filename(self, region):
-        name = "root"
-        if region:
-            region_name = region.getName()
-            if region_name and region_name != "/":
-                name = region_name
-
-        return f"{self._prefix}_{name}.vtk"
+        region_name = region.getName() if region and region.getName() != "/" else "root"
+        prefix = f"{self._prefix}_" if self._prefix else ""
+        return f"{prefix}{region_name}.vtk"
