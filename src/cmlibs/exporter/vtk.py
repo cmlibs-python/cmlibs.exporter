@@ -129,9 +129,9 @@ class ArgonSceneExporter(BaseExporter):
         Export surface and line graphics into VTK format.
         """
         scene = self._document.getRootRegion().getZincRegion().getScene()
-        self.export_vtk_from_scene(scene)
+        self.export_from_scene(scene)
 
-    def export_vtk_from_scene(self, scene, scene_filter=None):
+    def export_from_scene(self, scene, scene_filter=None):
         """
         Export graphics from a Zinc Scene into VTK format.
 
@@ -159,6 +159,6 @@ class ArgonSceneExporter(BaseExporter):
             child = child.getNextSibling()
 
     def _vtk_filename(self, region):
-        region_name = region.getName() if region and region.getName() != "/" else "root"
+        region_name = region.getName() if region and region.getName() not in [None, "/"] else "root"
         prefix = f"{self._prefix}_" if self._prefix else ""
         return f"{prefix}{region_name}.vtk"
