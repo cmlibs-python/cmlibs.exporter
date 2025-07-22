@@ -2,7 +2,6 @@ import os.path
 import unittest
 
 from cmlibs.exporter import thumbnail
-from cmlibs.exporter import vtk
 from cmlibs.exporter import stl
 from cmlibs.exporter import wavefront
 from cmlibs.exporter import mbfxml
@@ -28,39 +27,6 @@ class Exporter(unittest.TestCase):
         self.assertTrue(os.path.isfile(thumbnail_file))
 
         os.remove(thumbnail_file)
-
-    def test_vtk(self):
-        argon_document = _resource_path("argon-document.json")
-        output_target = _resource_path("")
-
-        exporter = vtk.ArgonSceneExporter(output_target=output_target)
-        exporter.load(argon_document)
-        exporter.export_vtk()
-
-        cube_file = _resource_path("ArgonSceneExporterVTK_cube.vtk")
-        self.assertTrue(os.path.isfile(cube_file))
-        sphere_file = _resource_path("ArgonSceneExporterVTK_sphere.vtk")
-        self.assertTrue(os.path.isfile(sphere_file))
-
-        os.remove(cube_file)
-        os.remove(sphere_file)
-
-    def test_vtk_from_scene(self):
-        source_model = _resource_path("fitted_uterus.exf")
-        output_target = _resource_path("")
-
-        exporter = vtk.ArgonSceneExporter(output_target=output_target, output_prefix="fitted_uterus")
-
-        c = Context('generate_vtk')
-        root_region = c.getDefaultRegion()
-        root_region.readFile(source_model)
-
-        exporter.export_from_scene(root_region.getScene())
-
-        vtk_file = _resource_path("fitted_uterus_root.vtk")
-        self.assertTrue(os.path.isfile(vtk_file))
-
-        os.remove(vtk_file)
 
     def test_stl(self):
         argon_document = _resource_path("argon-document.json")
