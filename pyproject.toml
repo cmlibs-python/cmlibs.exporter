@@ -33,7 +33,7 @@ Homepage = "https://cmlibs.org"
 Repository = "https://github.com/CMLibs-Python/cmlibs.exporter"
 
 [project.optional-dependencies]
-thumbnail_hardware = ["PySide6"]
-thumbnail_software = ["PyOpenGL"]
+opengl_hardware = ["PySide6"]
+opengl_software = ["PyOpenGL"]
 
 [tool.setuptools_scm]

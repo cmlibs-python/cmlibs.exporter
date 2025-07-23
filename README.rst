@@ -10,11 +10,11 @@ CMLibs exporter classes.  This software can be found on PyPi and installed with 
 When using the thumbnail exporter there are additional requirements for hardware or software rendering.
 To install the thumbnail exporter with support for hardware rendering install *cmlibs.exporter* with::
 
-  pip install 'cmlibs.exporter[thumbnail_hardware]'
+  pip install 'cmlibs.exporter[opengl_hardware]'
 
 To install the thumbnail exporter with support for software rendering install *cmlibs.exporter* with::
 
-  pip install 'cmlibs.exporter[thumbnail_software]'
+  pip install 'cmlibs.exporter[opengl_software]'
 
 To force the use of the software renderer even when hardware rendering is available, set an environment variable like so::
 
