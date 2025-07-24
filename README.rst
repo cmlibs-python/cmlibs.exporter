@@ -18,7 +18,7 @@ To install the thumbnail exporter with support for software rendering install *c
 
 To force the use of the software renderer even when hardware rendering is available, set an environment variable like so::
 
-  OC_EXPORTER_RENDERER=osmesa
+  CMLIBS_EXPORTER_RENDERER=osmesa
 
 either in the environment the exporter is run in or before calling the export thumbnail method.
 
