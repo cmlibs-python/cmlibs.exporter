@@ -61,7 +61,7 @@ class BaseImageExporter(BaseExporter):
         Export graphics into an image format.
         """
         pyside6_opengl_failed = True
-        if "CMLIBS_EXPORTER_RENDERER" not in os.environ or os.environ["CMLIBS_EXPORTER_RENDERER"] != "osmesa":
+        if os.environ.get("CMLIBS_EXPORTER_RENDERER", "<not-set>") != "offscreen":
             try:
                 from PySide6 import QtGui
 
@@ -79,33 +79,27 @@ class BaseImageExporter(BaseExporter):
             except ImportError:
                 pyside6_opengl_failed = True
 
-        mesa_context = None
+        os_context = None
+        fbo = None
         mesa_opengl_failed = True
         if pyside6_opengl_failed:
             try:
-                from OpenGL import GL
-                from OpenGL import arrays
-                from OpenGL.osmesa import (
-                    OSMesaCreateContextAttribs, OSMesaMakeCurrent, OSMESA_FORMAT,
-                    OSMESA_RGBA, OSMESA_PROFILE, OSMESA_COMPAT_PROFILE,
-                    OSMESA_CONTEXT_MAJOR_VERSION, OSMESA_CONTEXT_MINOR_VERSION,
-                    OSMESA_DEPTH_BITS
-                )
+                os.environ["GALLIUM_DRIVER"] = "llvmpipe"
+                # os.environ["MES"]
+                import moderngl
 
-                attrs = arrays.GLintArray.asArray([
-                    OSMESA_FORMAT, OSMESA_RGBA,
-                    OSMESA_DEPTH_BITS, 24,
-                    OSMESA_PROFILE, OSMESA_COMPAT_PROFILE,
-                    OSMESA_CONTEXT_MAJOR_VERSION, 2,
-                    OSMESA_CONTEXT_MINOR_VERSION, 1,
-                    0
-                ])
-                mesa_context = OSMesaCreateContextAttribs(attrs, None)
-                mesa_buffer = arrays.GLubyteArray.zeros((self._width, self._height, 4))
-                result = OSMesaMakeCurrent(mesa_context, mesa_buffer, GL.GL_UNSIGNED_BYTE, self._width, self._height)
+                os_context = moderngl.create_standalone_context(require="210")
+                print("Using moderngl context:", os_context["GL_VENDOR"])
+                print("OpenGL version:", os_context.version_code)
+                print("OpenGL Renderer:", os_context["GL_RENDERER"])
+                fbo = os_context.framebuffer(color_attachment=[os_context.texture((self._width, self._height), 4)])
+                fbo.use()
+                result = True
                 if result:
                     mesa_opengl_failed = False
             except ImportError:
+                os_context = None
+                fbo = None
                 mesa_opengl_failed = True
 
         if pyside6_opengl_failed and mesa_opengl_failed:
@@ -148,6 +142,6 @@ class BaseImageExporter(BaseExporter):
 
                 sceneviewer.writeImageToFile(os.path.join(self._output_target, f'{self._prefix}_{name}_{self._name_postfix}.jpeg'), False, self._width, self._height, 4, 0)
 
-        if mesa_context is not None:
-            from OpenGL.osmesa import OSMesaDestroyContext
-            OSMesaDestroyContext(mesa_context)
+        if os_context is not None:
+            fbo.release()
+            os_context.release()
