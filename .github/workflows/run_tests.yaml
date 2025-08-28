@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    #if: github.repository == 'cmlibs-python/cmlibs.exporter'
+    if: github.repository == 'hsorby/cmlibs.exporter'
     continue-on-error: true
     strategy:
       matrix:
@@ -31,7 +33,11 @@ jobs:
       - name: Install dependencies for ${{ matrix.os }} Python ${{ matrix.python-version }}
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            pip install -e ".[opengl_software]"
+          else
+            pip install -e ".[opengl_hardware]"
+          fi
 
       # find and run all unit tests
       - name: Run unit tests
