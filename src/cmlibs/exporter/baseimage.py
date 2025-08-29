@@ -83,6 +83,7 @@ class BaseImageExporter(BaseExporter):
         mesa_opengl_failed = True
         if pyside6_opengl_failed:
             try:
+                os.environ["PYOPENGL_PLATFORM"] = "osmesa"
                 from OpenGL import GL
                 from OpenGL import arrays
                 from OpenGL.osmesa import (
