@@ -39,7 +39,7 @@ jobs:
           else
             pip install -e ".[opengl_hardware]"
           fi
-          pip uninstall cmlibs.zinc
+          pip uninstall -y cmlibs.zinc
           pip install https://github.com/cmlibs-dependencies/prebuilt-library-cache/releases/download/cache/cmlibs_zinc-4.2.1-cp312-cp312-linux_x86_64.whl
 
       # find and run all unit tests
