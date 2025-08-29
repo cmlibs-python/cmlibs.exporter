@@ -61,7 +61,7 @@ class BaseImageExporter(BaseExporter):
         Export graphics into an image format.
         """
         pyside6_opengl_failed = True
-        if "CMLIBS_EXPORTER_RENDERER" not in os.environ or os.environ["CMLIBS_EXPORTER_RENDERER"] != "osmesa":
+        if os.environ.get("CMLIBS_EXPORTER_RENDERER", "<not-set>") != "offscreen":
             try:
                 from PySide6 import QtGui
 
