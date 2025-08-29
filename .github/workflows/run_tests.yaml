@@ -28,7 +28,7 @@ jobs:
       - name: Install required system libraries
         if: matrix.os == 'ubuntu-latest'
         run: |
-          sudo apt install libosmesa6 libgl1-mesa libglu1-mesa -y
+          sudo apt install libosmesa6 libglu1-mesa -y
       # install deps
       - name: Install dependencies for ${{ matrix.os }} Python ${{ matrix.python-version }}
         shell: bash
