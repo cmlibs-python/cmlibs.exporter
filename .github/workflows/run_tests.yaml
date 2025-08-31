@@ -33,16 +33,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
+            PY_VERSION_NODOT=$(echo "${{ matrix.python-version }}" | tr -d '.')
+            WHEEL_URL="https://github.com/cmlibs/swigzinc/releases/download/osmesa/cmlibs_zinc-4.2.1-cp${PY_VERSION_NODOT}-cp${PY_VERSION_NODOT}-linux_x86_64.whl"
+            pip install "${WHEEL_URL}"
             pip install -e ".[opengl_software]"
           else
             pip install -e ".[opengl_hardware]"
           fi
-          
-      - name: Install OSMESA cmlibs.zinc
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          pip uninstall -y cmlibs.zinc
-          pip install https://github.com/cmlibs-dependencies/prebuilt-library-cache/releases/download/cache/cmlibs_zinc-4.2.1-cp312-cp312-linux_x86_64.whl
 
       - name: Run unit tests
         run: python -m unittest discover -s tests
