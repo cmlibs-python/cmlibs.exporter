@@ -9,8 +9,7 @@ on:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
-    #if: github.repository == 'cmlibs-python/cmlibs.exporter'
-    if: github.repository == 'hsorby/cmlibs.exporter'
+    if: github.repository == 'cmlibs-python/cmlibs.exporter'
     continue-on-error: true
     strategy:
       matrix:
