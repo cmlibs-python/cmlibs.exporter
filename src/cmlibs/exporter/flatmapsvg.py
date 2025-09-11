@@ -11,6 +11,7 @@ import os
 import random
 from decimal import Decimal
 
+from packaging.version import Version
 from svgpathtools import svg2paths
 from xml.dom.minidom import parseString
 
@@ -54,6 +55,7 @@ class ArgonSceneExporter(BaseExporter):
         super(ArgonSceneExporter, self).__init__("ArgonSceneExporterWavefrontSVG" if output_prefix is None else output_prefix)
         self._output_target = output_target
         self._annotations_csv_file = None
+        self._annotations_json_file = None
 
     def export(self, output_target=None):
         """
@@ -145,6 +147,9 @@ class ArgonSceneExporter(BaseExporter):
     def set_annotations_csv_file(self, filename):
         self._annotations_csv_file = filename
 
+    def set_annotations_json_file(self, filename):
+        self._annotations_json_file = filename
+
     def _read_reversed_annotations_map(self):
         reversed_map = None
         if self._annotations_csv_file is not None:
@@ -155,7 +160,17 @@ class ArgonSceneExporter(BaseExporter):
 
                 if is_annotation_csv_file:
                     fh.seek(0)
-                    reversed_map = _reverse_map_annotations(result)
+                    reversed_map = _reverse_map_annotations_csv(result)
+
+        if self._annotations_json_file is not None:
+            with open(self._annotations_json_file) as fh:
+                try:
+                    result = json.load(fh)
+                except json.decoder.JSONDecodeError:
+                    result = None
+
+                if result is not None:
+                    reversed_map = _reverse_map_annotations_json(result)
 
         return reversed_map
 
@@ -851,7 +866,7 @@ def _define_background_regions(boundaries, view_box):
     return f'{brain_rect}{cervical_rect}{thoracic_rect}{lumbar_rect}', features
 
 
-def _reverse_map_annotations(csv_reader):
+def _reverse_map_annotations_csv(csv_reader):
     reverse_map = {}
     if csv_reader:
         first = True
@@ -863,6 +878,21 @@ def _reverse_map_annotations(csv_reader):
                 reverse_map[row[1]] = row[0]
 
     return reverse_map
+
+
+def _reverse_map_annotations_json(json_data):
+    reverse_map = {}
+    if json_data:
+        if json_data.get('id', '') == 'scaffold creator settings' and _known_version(json_data.get('version', '0.0.0')):
+            metadata = json_data.get('metadata', {'annotations': []})
+            for annotation in metadata.get('annotations', []):
+                reverse_map[annotation['name']] = annotation['id']
+
+    return reverse_map
+
+
+def _known_version(version_in):
+    return not Version(version_in) < Version('0.1.0')
 
 
 def _label_has_annotations(entry, annotation_map):

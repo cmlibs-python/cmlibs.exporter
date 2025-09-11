@@ -16,7 +16,7 @@ class BaseImageExporter(BaseExporter):
     By default the export will be use PySide6 to render the scene.
     An alternative is to use OSMesa for software rendering.
     To use OSMesa as the renderer either set the environment variable
-    OC_EXPORTER_RENDERER to 'osmesa' or not have PySide6 available in the
+    CMLIBS_EXPORTER_RENDERER to 'osmesa' or not have PySide6 available in the
     calling environment.
     """
 
@@ -61,7 +61,7 @@ class BaseImageExporter(BaseExporter):
         Export graphics into an image format.
         """
         pyside6_opengl_failed = True
-        if "OC_EXPORTER_RENDERER" not in os.environ or os.environ["OC_EXPORTER_RENDERER"] != "osmesa":
+        if os.environ.get("CMLIBS_EXPORTER_RENDERER", "<not-set>") != "offscreen":
             try:
                 from PySide6 import QtGui
 
@@ -83,6 +83,7 @@ class BaseImageExporter(BaseExporter):
         mesa_opengl_failed = True
         if pyside6_opengl_failed:
             try:
+                os.environ["PYOPENGL_PLATFORM"] = "osmesa"
                 from OpenGL import GL
                 from OpenGL import arrays
                 from OpenGL.osmesa import (
