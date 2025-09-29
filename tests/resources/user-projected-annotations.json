@@ -1,0 +1,10 @@
+{
+  "id": "scaffold creator settings",
+  "version": "0.1.0",
+  "metadata": {
+    "annotations": [
+      {"name": "Right spinal accessory nerve", "id": "ILX:345678"},
+      {"name":  "Right hypoglossal nerve", "id": "ILX:987654"}
+    ]
+  }
+}
