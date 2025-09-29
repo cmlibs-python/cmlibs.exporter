@@ -24,6 +24,9 @@ from cmlibs.utils.zinc.field import get_group_list
 from cmlibs.utils.zinc.finiteelement import get_highest_dimension_mesh
 from cmlibs.utils.zinc.general import ChangeManager
 
+from cmlibs.exporter.utils.beziercurve import stroke_poly_bezier
+from cmlibs.exporter.utils.continuity import find_continuous_segments
+
 logger = logging.getLogger(__name__)
 
 SVG_COLOURS = [
@@ -41,6 +44,17 @@ SVG_COLOURS = [
 
 SVG_OPENING_ELEMENT = '<svg width="1000" height="1000" viewBox="WWW XXX YYY ZZZ" xmlns="http://www.w3.org/2000/svg">'
 
+UNGROUPED_GROUP_NAME = ".ungrouped"
+
+
+def  _default_label_text(label, annotations_map):
+    if isinstance(annotations_map, str):
+        return f"Label '{label}' for term '{annotations_map}' was not found during lookup."
+
+    missing_annotation_text = '<missing-annotation>'
+    annotation_text = annotations_map.get(label, missing_annotation_text) if annotations_map else missing_annotation_text
+    return f"Label '{label}' for term '{annotation_text}' was not found during lookup."
+
 
 class ArgonSceneExporter(BaseExporter):
     """
@@ -56,6 +70,8 @@ class ArgonSceneExporter(BaseExporter):
         self._output_target = output_target
         self._annotations_csv_file = None
         self._annotations_json_file = None
+        self._coordinates_field_name = "coordinates"
+        self._material_field_name = "vagus coordinates"
 
     def export(self, output_target=None):
         """
@@ -99,13 +115,13 @@ class ArgonSceneExporter(BaseExporter):
             graphics are included in the export.
         """
         region = scene.getRegion()
-        path_points, svg_id_group_map = _analyze_elements(region, "coordinates")
+        path_points, group_element_map, points_index_element_id_map, svg_id_group_name_map = _analyze_elements(region, self._coordinates_field_name)
+        group_name_svg_id_map = {v: k for k, v in svg_id_group_name_map.items()}
         bezier = _calculate_bezier_control_points(path_points)
-        markers = _calculate_markers(region, "coordinates")
-        connected_segments = _collect_curves_into_segments(bezier)
-        end_point_data = _collate_end_points(connected_segments, svg_id_group_map)
-        network_plan, network_points = _determine_network(region, end_point_data, "coordinates")
-        svg_string = _write_into_svg_format(connected_segments, markers, network_points)
+        markers = _calculate_markers(region, self._coordinates_field_name)
+        connected_segments, connected_segments_index = _collect_curves_into_segments(bezier)
+        continuous_segments = find_continuous_segments(group_element_map, connected_segments_index)
+        svg_string = _write_into_svg_format(bezier, continuous_segments, markers, group_name_svg_id_map)
         view_box = _calculate_view_box(svg_string)
 
         boundaries = _calculate_cervical_thoracic_boundaries(markers)
@@ -120,12 +136,12 @@ class ArgonSceneExporter(BaseExporter):
         svg_string = parseString(svg_string).toprettyxml()
 
         reversed_annotations_map = self._read_reversed_annotations_map()
-        networks = [_create_vagus_network(network_plan, {v: k for k, v in svg_id_group_map.items()}, reversed_annotations_map)]
+        networks = [_create_vagus_network(continuous_segments, group_name_svg_id_map, reversed_annotations_map)]
 
         features = {}
         for marker in markers:
             feature = {
-                "name": marker[2],
+                "label": _default_label_text(marker[2], marker[3]),
                 "models": marker[3],
                 "colour": "orange"
             }
@@ -134,9 +150,14 @@ class ArgonSceneExporter(BaseExporter):
         if region_features is not None:
             features.update(region_features)
 
-        properties = {"networks": networks}
-        if features:
-            properties["features"] = features
+        centreline_features = {}
+        for label, ids in continuous_segments.items():
+            if len(ids) > 0:
+                svg_id = group_name_svg_id_map.get(label, UNGROUPED_GROUP_NAME)
+                centreline_features[svg_id] = {"label": _default_label_text(label, reversed_annotations_map)}
+        features.update(centreline_features)
+
+        properties = {"networks": networks, "features": features}
 
         with open(f'{os.path.join(self._output_target, self._prefix)}.svg', 'w') as f:
             f.write(svg_string)
@@ -150,9 +171,15 @@ class ArgonSceneExporter(BaseExporter):
     def set_annotations_json_file(self, filename):
         self._annotations_json_file = filename
 
+    def set_coordinates_field_name(self, coordinates_field_name):
+        self._coordinates_field_name = coordinates_field_name
+
+    def set_material_field_name(self, material_field_name):
+        self._material_field_name = material_field_name
+
     def _read_reversed_annotations_map(self):
         reversed_map = None
-        if self._annotations_csv_file is not None:
+        if self._annotations_csv_file is not None and os.path.isfile(self._annotations_csv_file):
             with open(self._annotations_csv_file) as fh:
                 result = csv.reader(fh)
 
@@ -162,7 +189,7 @@ class ArgonSceneExporter(BaseExporter):
                     fh.seek(0)
                     reversed_map = _reverse_map_annotations_csv(result)
 
-        if self._annotations_json_file is not None:
+        if self._annotations_json_file is not None and os.path.isfile(self._annotations_json_file):
             with open(self._annotations_json_file) as fh:
                 try:
                     result = json.load(fh)
@@ -253,21 +280,19 @@ def _analyze_elements(region, coordinate_field_name):
         logger.warning(f"Mesh found in region '{region.getName()}' is empty.")
         return {}, {}
 
-    group_list = get_group_list(fm)
-    grouped_path_points = {
-        "ungrouped": []
-    }
-    svg_id_group_map = {}
+    svg_id_group_name_map = {}
 
+    group_list = get_group_list(fm)
     size_of_digits = len(f'{len(group_list)}')
     for group_index, group in enumerate(group_list):
         group_name = group.getName()
         if group_name != "marker":
             group_label = _define_group_label(group_index, size_of_digits)
-            grouped_path_points[group_label] = []
-            # grouped_element_info[group_label] = []
-            svg_id_group_map[_group_svg_id(group_label)] = group_name
+            svg_id_group_name_map[_group_svg_id(group_label)] = group_name
 
+    path_points = []
+    groups_points = {}
+    points_element_id_map = {}
     with ChangeManager(fm):
         xi_1_derivative = fm.createFieldDerivative(coordinates, 1)
 
@@ -287,41 +312,126 @@ def _analyze_elements(region, coordinate_field_name):
                 line_path_points = [(values_1, derivatives_1), (values_2, derivatives_2)]
 
             if line_path_points is not None:
+                path_points_index = len(path_points)
+                path_points.append(line_path_points)
                 in_group = False
                 for group_index, group in enumerate(group_list):
                     mesh_group = group.getMeshGroup(mesh)
                     if mesh_group.containsElement(element):
-                        group_label = _define_group_label(group_index, size_of_digits)
-                        grouped_path_points[group_label].append(line_path_points)
+                        group_name = group.getName()
+                        groups_points.setdefault(group_name, []).append(path_points_index)
+                        points_element_id_map[path_points_index] = element.getIdentifier()
                         in_group = True
 
                     del mesh_group
 
                 if not in_group:
-                    grouped_path_points["ungrouped"].append(line_path_points)
+                    points_element_id_map[path_points_index] = element.getIdentifier()
+                    groups_points.setdefault(UNGROUPED_GROUP_NAME, []).append(path_points_index)
 
             element = el_iterator.next()
 
         del xi_1_derivative
 
-    return grouped_path_points, svg_id_group_map
+    return path_points, groups_points, points_element_id_map, svg_id_group_name_map
 
 
-def _calculate_view_box(svg_string):
-    paths, attributes = svg2paths(svg_string)
-    bbox = [999999999, -999999999, 999999999, -999999999]
-    for p in paths:
-        path_bbox = p.bbox()
-        bbox[0] = min(path_bbox[0], bbox[0])
-        bbox[1] = max(path_bbox[1], bbox[1])
-        bbox[2] = min(path_bbox[2], bbox[2])
-        bbox[3] = max(path_bbox[3], bbox[3])
+def _calculate_view_box(svg_string, margin = 10):
+    """
+    Calculates the viewBox for an SVG string based on the bounding box of its paths.
 
-    view_margin = 10
-    return (int(bbox[0] + 0.5) - view_margin,
-            int(bbox[2] + 0.5) - view_margin,
-            int(bbox[1] - bbox[0] + 0.5) + 2 * view_margin,
-            int(bbox[3] - bbox[2] + 0.5) + 2 * view_margin)
+    Args:
+        svg_string: The raw SVG content as a string.
+        margin: The integer margin to add around the content.
+
+    Returns:
+        A tuple (x, y, width, height) for the viewBox attribute,
+        or (0, 0, 0, 0) if the SVG contains no paths.
+    """
+    paths, _ = svg2paths(svg_string)
+
+    if not paths:
+        return 0, 0, 0, 0
+
+    all_bboxes = [p.bbox() for p in paths]
+
+    min_xs, max_xs, min_ys, max_ys = zip(*all_bboxes)
+
+    min_x = min(min_xs)
+    max_x = max(max_xs)
+    min_y = min(min_ys)
+    max_y = max(max_ys)
+
+    width = max_x - min_x
+    height = max_y - min_y
+
+    view_box_x = round(min_x) - margin
+    view_box_y = round(min_y) - margin
+    view_box_width = round(width) + 2 * margin
+    view_box_height = round(height) + 2 * margin
+
+    return view_box_x, view_box_y, view_box_width, view_box_height
+
+
+def _get_start_points_and_element_ids(path_points, element_id_map, connected_segments_index):
+    return [(path_points[indices[0]][0][0], [element_id_map[_id] for _id in indices]) for indices in connected_segments_index]
+
+
+def _add_all_elements_except(mesh, mesh_1d, mesh_group, except_element_ids):
+    """
+    Map the 3D element to 1D elements with the same identifier.
+    This relies on the fact that the 3D elements are built from the
+    underlying 1D elements and that there is an exact 1-to-1 match
+    between identifiers.
+    """
+    element_iterator = mesh.createElementiterator()
+    element = element_iterator.next()
+    while element.isValid():
+        if element.getIdentifier() not in except_element_ids:
+            element_1d = mesh_1d.findElementByIdentifier(element.getIdentifier())
+            mesh_group.addElement(element_1d)
+        element = element_iterator.next()
+
+
+def _find_intersections(region, coordinate_field_name, material_field_name, start_info):
+    fm = region.getFieldmodule()
+    mesh = get_highest_dimension_mesh(fm)
+    mesh_1d = fm.findMeshByDimension(1)
+
+    if mesh is None or mesh.getSize() == 0:
+        return {}, []
+
+
+    with ChangeManager(fm):
+
+        fc = fm.createFieldcache()
+        coordinates = fm.findFieldByName(coordinate_field_name).castFiniteElement()
+        vagus_coordinates = fm.findFieldByName(material_field_name).castFiniteElement()
+        find_mesh_location_field = fm.createFieldFindMeshLocation(coordinates, coordinates, mesh_1d)
+        find_mesh_location_field.setSearchMode(FieldFindMeshLocation.SEARCH_MODE_NEAREST)
+
+        for info in start_info:
+            first_point = info[0]
+            element_id = info[1][0]
+
+            field_group_1d = fm.createFieldGroup()
+            mesh_1d_group = field_group_1d.createMeshGroup(mesh_1d)
+            _add_all_elements_except(mesh, mesh_1d, mesh_1d_group, info[1])
+            element = mesh_1d.findElementByIdentifier(element_id)
+            if element.isValid():
+                find_mesh_location_field.setSearchMesh(mesh_1d_group)
+                fc.setFieldReal(coordinates, first_point)
+                mesh_location_element, mesh_location_xi = find_mesh_location_field.evaluateMeshLocation(fc, 1)
+                if mesh_location_element.isValid():
+                    fc.setMeshLocation(mesh_location_element, mesh_location_xi)
+                    result_1, values = coordinates.evaluateReal(fc, 3)
+                    result_2, material_values = vagus_coordinates.evaluateReal(fc, 3)
+                    if result_1 == RESULT_OK and result_2 == RESULT_OK:
+                        print("Found intersection:", values, mesh_location_element.getIdentifier())
+            else:
+                print(f"Expected element '{element_id}' to be valid but it isn't.")
+
+    return {}
 
 
 def _determine_network(region, end_point_data, coordinate_field_name):
@@ -347,7 +457,7 @@ def _determine_network(region, end_point_data, coordinate_field_name):
 
     # Map the 3D element groups to 1D elements with the same identifier.
     # This relies on the fact that the 3D elements are built from the
-    # underlying 1D elements and that their is an exact 1-to-1 match
+    # underlying 1D elements and that there is an exact 1-to-1 match
     # between identifiers.
     group_1d_group_map = {}
     for group in group_list:
@@ -479,15 +589,13 @@ def _collate_end_points(connected_segments, svg_id_group_map):
         for c in connected_segment:
             end_points.append((c[0][0], c[-1][3]))
         svg_id = _group_svg_id(group_name)
-        end_point_data[svg_id_group_map.get(svg_id, "ungrouped")] = end_points
+        end_point_data[svg_id_group_map.get(svg_id, UNGROUPED_GROUP_NAME)] = end_points
     return end_point_data
 
 
-def _create_plan(label, plan_data, group_svg_id_map, annotations_map):
+def _create_plan(label, group_svg_id_map, annotations_map):
     plan = {
-        "id": group_svg_id_map.get(label, "ungrouped"),
-        "label": label,
-        "connects": plan_data,
+        "id": group_svg_id_map.get(label, UNGROUPED_GROUP_NAME),
     }
     if annotations_map is not None and _label_has_annotations(label, annotations_map):
         plan["models"] = annotations_map[label]
@@ -495,15 +603,15 @@ def _create_plan(label, plan_data, group_svg_id_map, annotations_map):
     return plan
 
 
-def _create_network_centrelines(network_plan, group_svg_id_map, annotations_map):
-    return [_create_plan(label, data, group_svg_id_map, annotations_map) for label, data in network_plan.items()]
+def _create_network_centrelines(network, group_svg_id_map, annotations_map):
+    return [_create_plan(label, group_svg_id_map, annotations_map) for label, ids in network.items() if len(ids)]
 
 
-def _create_vagus_network(network_plan, group_svg_id_map, annotations_map):
+def _create_vagus_network(network, group_svg_id_map, annotations_map):
     return {
         "id": "vagus",
         "type": "nerve",
-        "centrelines": _create_network_centrelines(network_plan, group_svg_id_map, annotations_map)
+        "centrelines": _create_network_centrelines(network, group_svg_id_map, annotations_map)
     }
 
 
@@ -536,7 +644,7 @@ def _calculate_bezier_curve(pt_1, pt_2):
     return b0, b1, b2, b3
 
 
-def _calculate_bezier_control_points(point_data):
+def _calculate_bezier_control_points_old(point_data):
     bezier = {}
 
     for point_group in point_data:
@@ -546,6 +654,10 @@ def _calculate_bezier_control_points(point_data):
                 bezier[point_group].append(_calculate_bezier_curve(curve_pts[0], curve_pts[1]))
 
     return bezier
+
+
+def _calculate_bezier_control_points(point_data):
+    return [_calculate_bezier_curve(points[0], points[1]) for points in point_data]
 
 
 class UnionFind:
@@ -642,19 +754,29 @@ def _connected_segments(curve):
     return segments
 
 
-def _collect_curves_into_segments(bezier_data):
+def _collect_curves_into_segments_old(bezier_data):
     collection_of_paths = {}
     for group_name in bezier_data:
         connected_paths = _connected_segments(bezier_data[group_name])
 
         if len(connected_paths) > 1:
             logger.warning("Two (or more) of the following points should have been detected as the same point.")
+            logger.warning(f"From group: '{group_name}'")
             for connected_path in connected_paths:
                 logger.warning(f"{connected_path[0][0]} - {connected_path[-1][-1]}")
 
         collection_of_paths[group_name] = connected_paths
 
     return collection_of_paths
+
+
+def _collect_curves_into_segments(bezier_data):
+    segments = _connected_segments(bezier_data)
+    segments_index = []
+    for segment in segments:
+        segments_index.append([bezier_data.index(point) for point in segment])
+
+    return segments, segments_index
 
 
 def _calculate_section_control_vectors(b, normals=False):
@@ -673,7 +795,7 @@ def _calculate_section_control_vectors(b, normals=False):
     return n1, n2
 
 
-def _expand_bezier_path_to_outline(bezier_path, group_name):
+def _expand_bezier_path_to_outline(bezier_path):
     offset = 2
 
     offset_bezier_paths = []
@@ -743,17 +865,47 @@ def _create_joining_section(offset_section, reverse_offset_section):
     return joining_section_1
 
 
+def _get_stroke_colour(group_name, outline=False):
+    return "grey" if group_name is None else "#e28343" if outline else "#01136e"
+
+
 def _write_connected_svg_bezier_path(bezier_path, group_name, outline=False):
-    stroke = "grey" if group_name is None else "#e28343" if outline else "#01136e"
+    stroke = _get_stroke_colour(group_name, outline)
 
     svg = '<path d="'
-    for i, bezier_section in enumerate(bezier_path):
-        m_space = '' if i == 0 else ' '
-        for j, b in enumerate(bezier_section):
-            if j == 0:
-                svg += f'{m_space}M {b[0][0]} {-b[0][1]}'
+    for i, b in enumerate(bezier_path):
+        if i == 0:
+            svg += f'M {b[0][0]} {-b[0][1]}'
 
-            svg += f' C {b[1][0]} {-b[1][1]}, {b[2][0]} {-b[2][1]}, {b[3][0]} {-b[3][1]}'
+        svg += f' C {b[1][0]} {-b[1][1]}, {b[2][0]} {-b[2][1]}, {b[3][0]} {-b[3][1]}'
+    svg += f'" stroke="{stroke}" fill="none"'
+    svg += '/>' if group_name is None else f'><title>.id({_group_svg_id(group_name)})</title></path>'
+
+    return svg
+
+
+def _write_connected_svg_polygon_path(polygon_path, group_name, outline=False):
+    stroke = _get_stroke_colour(group_name, outline)
+
+    svg = '<path d="'
+    d_parts = []
+    for poly_points in polygon_path:
+        if len(poly_points) == 0:
+            continue
+
+        # Start with the 'Move To' command for the first point
+        start_point = poly_points[0]
+        d_parts.append(f"M {start_point[0]:.3f} {-start_point[1]:.3f}")
+
+        # Add 'Line To' commands for the rest of the points
+        for point in poly_points[1:]:
+            d_parts.append(f"L {point[0]:.3f} {-point[1]:.3f}")
+
+        # Add the 'Close Path' command
+        d_parts.append("Z")
+
+    # Join all parts to form the final 'd' attribute string
+    svg += " ".join(d_parts)
     svg += f'" stroke="{stroke}" fill="none"'
     svg += '/>' if group_name is None else f'><title>.id({_group_svg_id(group_name)})</title></path>'
 
@@ -764,17 +916,20 @@ def _write_svg_circle(point, identifier):
     return f'<circle style="fill: rgb(216, 216, 216);" cx="{point[0]}" cy="{-point[1]}" r="0.9054"><title>.id({identifier})</title></circle>'
 
 
-def _write_into_svg_format(connected_paths, markers, network_points):
+def _write_into_svg_format(bezier, paths, markers, group_name_id_map, network_points=None):
     svg = SVG_OPENING_ELEMENT
 
-    size_of_digits = len(f'{len(network_points)}')
-    for index, network_point in enumerate(network_points):
-        svg += _write_svg_circle(network_point, _define_point_title(index, size_of_digits))
+    if network_points is not None:
+        size_of_digits = len(f'{len(network_points)}')
+        for index, network_point in enumerate(network_points):
+            svg += _write_svg_circle(network_point, _define_point_title(index, size_of_digits))
 
-    for group_name, connected_path in connected_paths.items():
-        offset_paths = _expand_bezier_path_to_outline(connected_path, group_name if group_name != "ungrouped" else None)
-        svg += _write_connected_svg_bezier_path(connected_path, group_name=group_name if group_name != "ungrouped" else None)
-        svg += _write_connected_svg_bezier_path(offset_paths, group_name=f"{group_name}_outline" if group_name != "ungrouped" else None, outline=True)
+    for group_name, connected_indices in paths.items():
+        connected_path = [bezier[index] for index in connected_indices]
+        svg_id = group_name_id_map[group_name]
+        offset_paths = stroke_poly_bezier(connected_path, 1, 100)
+        svg += _write_connected_svg_bezier_path(connected_path, group_name=svg_id if group_name != UNGROUPED_GROUP_NAME else None)
+        svg += _write_connected_svg_polygon_path(offset_paths, group_name=f"{svg_id}_outline" if group_name != UNGROUPED_GROUP_NAME else None, outline=True)
 
     # for i in range(len(bezier_path)):
     #     b = bezier_path[i]

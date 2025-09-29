@@ -7,6 +7,7 @@ from cmlibs.zinc.context import Context
 
 from cmlibs.exporter import flatmapsvg
 from cmlibs.exporter.flatmapsvg import _connected_segments, _write_into_svg_format, _calculate_view_box
+from cmlibs.exporter.utils.continuity import find_continuous_segments
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -39,7 +40,7 @@ class Exporter(unittest.TestCase):
         tree = ET.parse(flatmap_svg_file)
         root = tree.getroot()
 
-        self.assertEqual(20, len(root))
+        self.assertEqual(8, len(root))
 
         with open(properties_file) as f:
             content = json.load(f)
@@ -56,7 +57,7 @@ class Exporter(unittest.TestCase):
             [([-10.0, 0.0], [-7.5, 2.5], [-2.5, 2.5], [0.0, 0.0]),
              ([0.0, 0.0], [2.5, -2.5], [7.5, -2.5], [10.0, 0.0])]]
         }
-        svg_string = _write_into_svg_format(values, [], [])
+        svg_string = _write_into_svg_format(values, {}, [], {})
         self.assertTrue(len(svg_string) > 0)
 
         view_box = _calculate_view_box(svg_string)
@@ -68,6 +69,41 @@ class Exporter(unittest.TestCase):
             fh.write(svg_string)
 
         os.remove(simple_svg_file)
+
+    def test_flatmap_svg_user_mesh(self):
+        source_model = _resource_path("user-projected-mesh.exf")
+        source_annotations = _resource_path("user-projected-annotations.json")
+        output_target = _resource_path("")
+
+        exporter = flatmapsvg.ArgonSceneExporter(output_target=output_target, output_prefix="vagus")
+        exporter.set_annotations_json_file(source_annotations)
+
+        c = Context('generate_flatmap_svg')
+        root_region = c.getDefaultRegion()
+        root_region.readFile(source_model)
+
+        exporter.export_from_scene(root_region.getScene())
+        flatmap_svg_file = _resource_path("vagus.svg")
+        self.assertTrue(os.path.isfile(flatmap_svg_file))
+        properties_file = _resource_path("properties.json")
+        self.assertTrue(os.path.isfile(properties_file))
+
+        tree = ET.parse(flatmap_svg_file)
+        root = tree.getroot()
+
+        self.assertEqual(92, len(root))
+
+        with open(properties_file) as f:
+            content = json.load(f)
+
+        self.assertTrue('features' in content)
+        self.assertTrue('nerve_feature_02' in content['features'])
+        self.assertTrue('label' in content['features']['nerve_feature_02'])
+        self.assertIn('Right spinal accessory nerve', content['features']['nerve_feature_02']['label'])
+        self.assertIn('ILX:345678', content['features']['nerve_feature_02']['label'])
+
+        os.remove(flatmap_svg_file)
+        os.remove(properties_file)
 
 
 def _define_test_points():
@@ -137,3 +173,15 @@ class FindConnectedSet(unittest.TestCase):
         c1 = [[p1, NULL, NULL, p2], [p2, NULL, NULL, p3], [p3, NULL, NULL, p4], [p4, NULL, NULL, p5], [p3, NULL, NULL, p6], [p6, NULL, NULL, p7]]
 
         self.assertEqual(2, len(_connected_segments(c1)))
+
+
+class ContinuityTests(unittest.TestCase):
+
+    def test_continuous_segments(self):
+        partition_info = {'r1': [0, 1, 2, 3], 'r2': [4, 5, 6, 7], 'r3': [8, 9, 5, 6]}
+        connected_segments_index = [[0, 1, 2, 3], [4, 5, 6, 7]]
+        continuous_segments = find_continuous_segments(partition_info, connected_segments_index)
+
+        self.assertEqual(2, len(continuous_segments))
+        self.assertEqual(partition_info['r1'], continuous_segments['r1'])
+        self.assertEqual(partition_info['r2'], continuous_segments['r2'])
