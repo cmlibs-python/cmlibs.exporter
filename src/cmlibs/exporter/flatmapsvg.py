@@ -1009,9 +1009,9 @@ def _define_background_regions(boundaries, view_box):
     lumbar_min_y = thoracic_min_y + thoracic_height
 
     brain_rect = ''
-    cervical_height = ''
-    thoracic_height = ''
-    lumbar_height = ''
+    cervical_rect = ''
+    thoracic_rect = ''
+    lumbar_rect = ''
     features = {}
     if width > 0:
         if brain_height > 0:
