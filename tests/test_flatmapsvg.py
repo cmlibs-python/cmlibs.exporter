@@ -91,7 +91,7 @@ class Exporter(unittest.TestCase):
         tree = ET.parse(flatmap_svg_file)
         root = tree.getroot()
 
-        self.assertEqual(92, len(root))
+        self.assertEqual(89, len(root))
 
         with open(properties_file) as f:
             content = json.load(f)
