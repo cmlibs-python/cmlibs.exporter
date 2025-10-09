@@ -1007,16 +1007,25 @@ def _define_background_regions(boundaries, view_box):
     cervical_min_y = min_y + brain_height
     thoracic_min_y = cervical_min_y + cervical_height
     lumbar_min_y = thoracic_min_y + thoracic_height
-    brain_rect = f'<rect x="{min_x}" y="{min_y}" width="{width}" height="{brain_height}" fill="red"><title>.id(brain_region)</title></rect>'
-    cervical_rect = f'<rect x="{min_x}" y="{cervical_min_y}" width="{width}" height="{cervical_height}" fill="green"><title>.id(cervical_region)</title></rect>'
-    thoracic_rect = f'<rect x="{min_x}" y="{thoracic_min_y}" width="{width}" height="{thoracic_height}" fill="grey"><title>.id(thoracic_region)</title></rect>'
-    lumbar_rect = f'<rect x="{min_x}" y="{lumbar_min_y}" width="{width}" height="{lumbar_height}" fill="blue"><title>.id(lumbar_region)</title></rect>'
-    features = {
-        "brain_region": {"name": "Brain"},
-        "cervical_region": {"name": "Cervical C1-C7"},
-        "thoracic_region": {"name": "Thoracic T1-T12"},
-        "lumbar_region": {"name": "Lumbar L1-"}
-    }
+
+    brain_rect = ''
+    cervical_height = ''
+    thoracic_height = ''
+    lumbar_height = ''
+    features = {}
+    if width > 0:
+        if brain_height > 0:
+            features["brain_region"] = {"name": "Brain"}
+            brain_rect = f'<rect x="{min_x}" y="{min_y}" width="{width}" height="{brain_height}" fill="red"><title>.id(brain_region)</title></rect>'
+        if cervical_height > 0:
+            features["cervical_region"] = {"name": "Cervical C1-C7"}
+            cervical_rect = f'<rect x="{min_x}" y="{cervical_min_y}" width="{width}" height="{cervical_height}" fill="green"><title>.id(cervical_region)</title></rect>'
+        if thoracic_height > 0:
+            features["thoracic_region"] = {"name": "Thoracic T1-T12"}
+            thoracic_rect = f'<rect x="{min_x}" y="{thoracic_min_y}" width="{width}" height="{thoracic_height}" fill="grey"><title>.id(thoracic_region)</title></rect>'
+        if lumbar_height > 0:
+            features["lumbar_region"] = {"name": "Lumbar L1-"}
+            lumbar_rect = f'<rect x="{min_x}" y="{lumbar_min_y}" width="{width}" height="{lumbar_height}" fill="blue"><title>.id(lumbar_region)</title></rect>'
 
     return f'{brain_rect}{cervical_rect}{thoracic_rect}{lumbar_rect}', features
 
