@@ -1,0 +1,297 @@
+{
+  "features": {
+    "brain_region": {
+      "name": "Brain"
+    },
+    "marker_10001": {
+      "colour": "orange",
+      "label": "Label 'right level of superior border of jugular foramen on the vagus nerve' for term 'UBERON:9947841' was not found during lookup.",
+      "models": "UBERON:9947841"
+    },
+    "marker_10002": {
+      "colour": "orange",
+      "label": "Label 'right level of inferior border of jugular foramen on the vagus nerve' for term 'UBERON:9936083' was not found during lookup.",
+      "models": "UBERON:9936083"
+    },
+    "marker_10003": {
+      "colour": "orange",
+      "label": "Label 'right level of angle of the mandible on the vagus nerve' for term 'UBERON:9986030' was not found during lookup.",
+      "models": "UBERON:9986030"
+    },
+    "marker_10004": {
+      "colour": "orange",
+      "label": "Label 'right level of carotid bifurcation on the vagus nerve' for term 'UBERON:9936336' was not found during lookup.",
+      "models": "UBERON:9936336"
+    },
+    "marker_10005": {
+      "colour": "orange",
+      "label": "Label 'right level of laryngeal prominence on the vagus nerve' for term 'UBERON:9931228' was not found during lookup.",
+      "models": "UBERON:9931228"
+    },
+    "marker_10006": {
+      "colour": "orange",
+      "label": "Label 'right level of superior border of the clavicle on the vagus nerve' for term 'UBERON:9968398' was not found during lookup.",
+      "models": "UBERON:9968398"
+    },
+    "marker_10007": {
+      "colour": "orange",
+      "label": "Label 'right level of jugular notch on the vagus nerve' for term 'UBERON:9967307' was not found during lookup.",
+      "models": "UBERON:9967307"
+    },
+    "marker_10008": {
+      "colour": "orange",
+      "label": "Label 'right level of sternal angle on the vagus nerve' for term 'UBERON:9987408' was not found during lookup.",
+      "models": "UBERON:9987408"
+    },
+    "nerve_feature_01": {
+      "label": "Label 'Right hypoglossal nerve' for term 'ILX:987654' was not found during lookup."
+    },
+    "nerve_feature_02": {
+      "label": "Label 'Right spinal accessory nerve' for term 'ILX:345678' was not found during lookup."
+    },
+    "nerve_feature_03": {
+      "label": "Label 'cardiovascular/cardiopulmonary branch of right cervical vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_04": {
+      "label": "Label 'cardiovascular/cardiopulmonary branch of right thoracic vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_08": {
+      "label": "Label 'right A branch of cervical vagus nerve to sympathetic chain, cardiovascular, and pulmonary structures' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_09": {
+      "label": "Label 'right A branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_10": {
+      "label": "Label 'right A cardiovascular branch of cervical vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_11": {
+      "label": "Label 'right A cardiovascular branch of cranial nerve bundle' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_12": {
+      "label": "Label 'right A lateral pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_13": {
+      "label": "Label 'right A medial pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_14": {
+      "label": "Label 'right A thoracic cardiopulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_15": {
+      "label": "Label 'right B branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_16": {
+      "label": "Label 'right B cardiovascular branch of cranial nerve bundle' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_17": {
+      "label": "Label 'right B lateral pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_18": {
+      "label": "Label 'right B medial pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_19": {
+      "label": "Label 'right B thoracic cardiopulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_20": {
+      "label": "Label 'right C branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_21": {
+      "label": "Label 'right C lateral pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_22": {
+      "label": "Label 'right C medial pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_23": {
+      "label": "Label 'right C thoracic cardiopulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_24": {
+      "label": "Label 'right D branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_25": {
+      "label": "Label 'right D lateral pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_26": {
+      "label": "Label 'right D medial pulmonary branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_27": {
+      "label": "Label 'right E branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_28": {
+      "label": "Label 'right F branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_29": {
+      "label": "Label 'right G branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_30": {
+      "label": "Label 'right H branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_31": {
+      "label": "Label 'right I branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_32": {
+      "label": "Label 'right J branch of thoracic vagus nerve to esophageal plexus' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_33": {
+      "label": "Label 'right branch between cranial nerve bundle and superior cervical ganglion' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_35": {
+      "label": "Label 'right branch of cervical vagus nerve to sympathetic chain, cardiovascular, and pulmonary structures' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_36": {
+      "label": "Label 'right cardiovascular branch of cervical vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_38": {
+      "label": "Label 'right cervical vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_39": {
+      "label": "Label 'right cranial nerve bundle to cervical spinal nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_42": {
+      "label": "Label 'right pharyngeal branch of cranial nerve bundle' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_43": {
+      "label": "Label 'right recurrent laryngeal nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_44": {
+      "label": "Label 'right superior laryngeal nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_46": {
+      "label": "Label 'right thoracic vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_47": {
+      "label": "Label 'right unknown branch of vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    },
+    "nerve_feature_48": {
+      "label": "Label 'right vagus nerve' for term '<missing-annotation>' was not found during lookup."
+    }
+  },
+  "networks": [
+    {
+      "centrelines": [
+        {
+          "id": "nerve_feature_38"
+        },
+        {
+          "id": "nerve_feature_48"
+        },
+        {
+          "id": "nerve_feature_46"
+        },
+        {
+          "id": "nerve_feature_01",
+          "models": "ILX:987654"
+        },
+        {
+          "id": "nerve_feature_02",
+          "models": "ILX:345678"
+        },
+        {
+          "id": "nerve_feature_03"
+        },
+        {
+          "id": "nerve_feature_04"
+        },
+        {
+          "id": "nerve_feature_08"
+        },
+        {
+          "id": "nerve_feature_35"
+        },
+        {
+          "id": "nerve_feature_09"
+        },
+        {
+          "id": "nerve_feature_10"
+        },
+        {
+          "id": "nerve_feature_36"
+        },
+        {
+          "id": "nerve_feature_11"
+        },
+        {
+          "id": "nerve_feature_12"
+        },
+        {
+          "id": "nerve_feature_13"
+        },
+        {
+          "id": "nerve_feature_14"
+        },
+        {
+          "id": "nerve_feature_15"
+        },
+        {
+          "id": "nerve_feature_16"
+        },
+        {
+          "id": "nerve_feature_17"
+        },
+        {
+          "id": "nerve_feature_18"
+        },
+        {
+          "id": "nerve_feature_19"
+        },
+        {
+          "id": "nerve_feature_20"
+        },
+        {
+          "id": "nerve_feature_21"
+        },
+        {
+          "id": "nerve_feature_22"
+        },
+        {
+          "id": "nerve_feature_23"
+        },
+        {
+          "id": "nerve_feature_24"
+        },
+        {
+          "id": "nerve_feature_25"
+        },
+        {
+          "id": "nerve_feature_26"
+        },
+        {
+          "id": "nerve_feature_27"
+        },
+        {
+          "id": "nerve_feature_28"
+        },
+        {
+          "id": "nerve_feature_29"
+        },
+        {
+          "id": "nerve_feature_30"
+        },
+        {
+          "id": "nerve_feature_31"
+        },
+        {
+          "id": "nerve_feature_32"
+        },
+        {
+          "id": "nerve_feature_33"
+        },
+        {
+          "id": "nerve_feature_39"
+        },
+        {
+          "id": "nerve_feature_42"
+        },
+        {
+          "id": "nerve_feature_43"
+        },
+        {
+          "id": "nerve_feature_44"
+        },
+        {
+          "id": "nerve_feature_47"
+        }
+      ],
+      "id": "vagus",
+      "type": "nerve"
+    }
+  ]
+}
