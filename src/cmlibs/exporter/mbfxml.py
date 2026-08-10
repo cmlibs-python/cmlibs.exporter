@@ -55,16 +55,16 @@ class ArgonSceneExporter(BaseExporter):
             graphics are included in the export.
         """
         region = scene.getRegion()
-        call_fcn = self._export_region_hierachy if hierarchical else self._export_region
+        call_fcn = self._export_region_hierarchy if hierarchical else self._export_region
         call_fcn(region)
 
-    def _export_region_hierachy(self, region, region_path=None):
+    def _export_region_hierarchy(self, region, region_path=None):
         self._export_region(region, region_path)
         child_region = region.getFirstChild()
         while child_region.isValid():
             region_path = "" if region_path is None else region_path
             region_path += f"_{child_region.getName()}"
-            self._export_region_hierachy(child_region, region_path)
+            self._export_region_hierarchy(child_region, region_path)
             child_region = region.getNextSibling()
 
     def _export_region(self, region, region_path=None):
