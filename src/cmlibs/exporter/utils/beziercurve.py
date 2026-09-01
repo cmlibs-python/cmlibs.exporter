@@ -61,9 +61,11 @@ def _apply_caps(stroke_a, stroke_b, start_control_points, end_control_points, of
 
     elif cap_style == 'round':
         end_center = cubic_bezier_point(1, end_control_points)
-        end_arc = _create_arc_points(end_center, stroke_a[-1], stroke_b[-1], cap_segments)
+        end_tangent = _cubic_bezier_tangent(1, end_control_points)
+        end_arc = _create_arc_points(end_center, stroke_a[-1], stroke_b[-1], -end_tangent, cap_segments)
         start_center = cubic_bezier_point(0, start_control_points)
-        start_arc = _create_arc_points(start_center, stroke_b[0], stroke_a[0], cap_segments)
+        start_tangent = _cubic_bezier_tangent(0, start_control_points)
+        start_arc = _create_arc_points(start_center, stroke_b[0], stroke_a[0], start_tangent, cap_segments)
         full_polygon = np.concatenate([stroke_a, end_arc, stroke_b[::-1], start_arc])
         return [full_polygon]
 
@@ -182,11 +184,13 @@ def stroke_bezier(control_points, offset_distance, num_segments=100, cap_style='
     if cap_style == 'butt':
         # End cap (t=1)
         end_center = cubic_bezier_point(1, control_points)
-        end_arc = _create_arc_points(end_center, stroke_b[-1], stroke_a[-1], cap_segments)
+        end_tangent = _cubic_bezier_tangent(1, control_points)
+        end_arc = _create_arc_points(end_center, stroke_b[-1], stroke_a[-1], -end_tangent, cap_segments)
 
         # Start cap (t=0)
         start_center = cubic_bezier_point(0, control_points)
-        start_arc = _create_arc_points(start_center, stroke_a[0], stroke_b[0], cap_segments)
+        start_tangent = _cubic_bezier_tangent(0, control_points)
+        start_arc = _create_arc_points(start_center, stroke_a[0], stroke_b[0], start_tangent, cap_segments)
 
         # Combine into a single closed polygon
         # Order: Stroke A -> End Cap Arc -> Reversed Stroke B -> Start Cap Arc
@@ -201,11 +205,13 @@ def stroke_bezier(control_points, offset_distance, num_segments=100, cap_style='
     elif cap_style == 'round':
         # End cap (t=1)
         end_center = cubic_bezier_point(1, control_points)
-        end_arc = _create_arc_points(end_center, stroke_a[-1], stroke_b[-1], cap_segments)
+        end_tangent = _cubic_bezier_tangent(1, control_points)
+        end_arc = _create_arc_points(end_center, stroke_a[-1], stroke_b[-1], -end_tangent, cap_segments)
 
         # Start cap (t=0)
         start_center = cubic_bezier_point(0, control_points)
-        start_arc = _create_arc_points(start_center, stroke_b[0], stroke_a[0], cap_segments)
+        start_tangent = _cubic_bezier_tangent(0, control_points)
+        start_arc = _create_arc_points(start_center, stroke_b[0], stroke_a[0], start_tangent, cap_segments)
 
         # Combine into a single closed polygon
         # Order: Stroke A -> End Cap Arc -> Reversed Stroke B -> Start Cap Arc
@@ -243,29 +249,37 @@ def stroke_bezier(control_points, offset_distance, num_segments=100, cap_style='
     else:
         raise ValueError("cap_style must be one of 'butt', 'round', or 'square'")
 
+def _cubic_bezier_tangent(t, control_points):
+    p0, p1, p2, p3 = control_points
 
-def _create_arc_points(center, start_point, end_point, num_segments):
-    """Helper function to create points for a semicircle."""
+    return (
+        3 * (1 - t) ** 2 * (p1 - p0)
+        + 6 * (1 - t) * t * (p2 - p1)
+        + 3 * t ** 2 * (p3 - p2)
+    )
+
+
+def _create_arc_points(center, start_point, end_point, tangent, num_segments):
+    """Helper function to create arc points."""
+
     v_start = start_point - center
-    v_end = end_point - center
-
     radius = np.linalg.norm(v_start)
 
+    tangent = tangent / np.linalg.norm(tangent)
+
     start_angle = np.arctan2(v_start[1], v_start[0])
-    end_angle = np.arctan2(v_end[1], v_end[0])
 
-    # Ensure the arc travels in the correct direction (less than 180 degrees)
-    if np.cross(v_start, v_end) < 0:
-        if end_angle < start_angle:
-            start_angle += 2 * np.pi
-    else:
-        if end_angle > start_angle:
-            end_angle -= 2 * np.pi
+    cross = tangent[0] * v_start[1] - tangent[1] * v_start[0]
 
-    angles = np.linspace(start_angle, end_angle, num_segments)
-    arc_points = center + radius * np.array([np.cos(angles), np.sin(angles)]).T
-    return arc_points
+    delta = np.pi if cross > 0 else -np.pi
 
+    angles = np.linspace(
+        start_angle,
+        start_angle + delta,
+        num_segments
+    )
+
+    return center + radius * np.column_stack((np.cos(angles), np.sin(angles)))
 
 # --- 3. Example Usage & Visualization ---
 
